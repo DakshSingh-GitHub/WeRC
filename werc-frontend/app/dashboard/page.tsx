@@ -193,16 +193,15 @@ export default function DashboardPage() {
     setProfileError(null);
 
     try {
-      // Upsert profile record
+      // Update existing profile record (user row always exists after signup)
       const { error } = await supabase
         .from("profiles")
-        .upsert({
-          id: profile.id,
+        .update({
           full_name: profile.full_name,
-          username: profile.username,
           country: profile.country,
           bio: profile.bio
-        });
+        })
+        .eq("id", profile.id);
 
       if (error) throw error;
       setProfileSuccess(true);
@@ -442,13 +441,16 @@ export default function DashboardPage() {
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Username</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Username</label>
+                      <span className="text-[9px] text-zinc-600 font-mono">// non-editable</span>
+                    </div>
                     <input
                       type="text"
-                      required
+                      readOnly
+                      disabled
                       value={profile.username}
-                      onChange={(e) => setProfile({ ...profile, username: e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, "") })}
-                      className="w-full bg-zinc-900 border border-zinc-900 hover:border-zinc-850 focus:border-zinc-800 rounded px-4 py-2.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all"
+                      className="w-full bg-zinc-900/40 border border-zinc-900 rounded px-4 py-2.5 text-zinc-500 cursor-not-allowed select-none focus:outline-none"
                     />
                   </div>
 
