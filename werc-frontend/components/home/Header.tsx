@@ -49,11 +49,11 @@ export default function Header({
       {/* Left Side: Brand Logo */}
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
-          <div className={`h-6 w-6 rounded border flex items-center justify-center font-bold text-xs transition-colors ${
-            getThemeClass("bg-zinc-200 border-zinc-300 text-zinc-900", "bg-zinc-900 border-zinc-800 text-white")
-          }`}>
-            W
-          </div>
+          <img 
+            src="/logo/logo.png" 
+            alt="WeRC Logo" 
+            className="h-6 w-6 object-contain rounded"
+          />
           <span className="text-sm font-semibold tracking-tight">WeRC</span>
         </div>
         <div className={`h-4 w-px ${getThemeClass("bg-zinc-200", "bg-zinc-900")}`} />
@@ -74,7 +74,7 @@ export default function Header({
       {/* Right Side: Language select, Run Button, Profile Dropdown */}
       <div className="flex items-center gap-3">
         {/* Minimal Language Select */}
-        <div className="relative">
+        <div className="hidden md:block relative">
           <select
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
@@ -87,13 +87,13 @@ export default function Header({
           <ChevronDown className="absolute right-2.5 top-2.5 h-3 w-3 text-zinc-500 pointer-events-none" />
         </div>
 
-        <div className={`h-4 w-px ${getThemeClass("bg-zinc-200", "bg-zinc-900")}`} />
+        <div className={`hidden md:block h-4 w-px ${getThemeClass("bg-zinc-200", "bg-zinc-900")}`} />
 
         {/* Run Code Button */}
         <button
           onClick={handleRun}
           disabled={isRunning}
-          className={`flex items-center gap-1.5 px-4 h-8.5 rounded-lg font-semibold text-sm transition-all duration-200 ${
+          className={`flex items-center gap-1.5 px-3 md:px-4 h-8.5 rounded-lg font-semibold text-sm transition-all duration-200 ${
             isRunning
               ? "bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-800"
               : getThemeClass("bg-zinc-900 text-white hover:bg-zinc-800", "bg-white text-zinc-950 hover:bg-zinc-200") + " border border-transparent shadow active:scale-[0.98]"
@@ -104,7 +104,7 @@ export default function Header({
           ) : (
             <Play className="h-3.5 w-3.5 fill-current" />
           )}
-          {isRunning ? "Running" : "Run Code"}
+          <span className="hidden sm:inline">{isRunning ? "Running" : "Run Code"}</span>
         </button>
 
         <div className={`h-4 w-px ${getThemeClass("bg-zinc-200", "bg-zinc-900")}`} />

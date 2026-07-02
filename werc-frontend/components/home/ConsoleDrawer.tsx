@@ -33,10 +33,14 @@ export default function ConsoleDrawer({
 }: ConsoleDrawerProps) {
   return (
     <div 
-      style={{ height: isDrawerCollapsed ? "40px" : `${drawerHeight}px` }}
       className={`w-full border-t flex flex-col transition-[height] duration-75 relative z-10 ${
+        isDrawerCollapsed ? "h-[40px]" : "h-[45vh] md:h-[var(--desktop-height)]"
+      } ${
         getThemeClass("bg-zinc-50 border-zinc-200", "bg-zinc-950 border-zinc-900")
       }`}
+      style={{ 
+        "--desktop-height": `${drawerHeight}px` 
+      } as React.CSSProperties}
     >
       {/* Drawer Tab Headers */}
       <div className={`h-10 flex items-center justify-between px-4 border-b select-none ${

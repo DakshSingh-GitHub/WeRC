@@ -5,7 +5,6 @@ import Editor from "@monaco-editor/react";
 import { Cpu, Info } from "lucide-react";
 import { runCode, JUDGE_API_BASE_URL, RunCodeResponse, CodeFile } from "./config/api";
 
-// Import modular components
 import Header from "../components/home/Header";
 import SidebarTabs from "../components/home/SidebarTabs";
 import SidebarDrawer from "../components/home/SidebarDrawer";
@@ -19,12 +18,8 @@ const INITIAL_FOLDERS: string[] = [];
 const INITIAL_FILES: CodeFile[] = [
   {
     path: "main.py",
-    content: `# Write your collaborative solution here
-def solve():
-    print("Welcome to WeRC Collaborative Workspace")
-
-if __name__ == "__main__":
-    solve()
+    content: `# Write your code here
+print("Hello, World!")
 `
   }
 ];
@@ -551,7 +546,7 @@ export default function Home() {
             {/* Sidebar Width Resize Slider Handle */}
             <div
               onMouseDown={startDraggingSidebar}
-              className={`w-[4px] hover:w-[6px] bg-transparent hover:bg-zinc-700 cursor-col-resize h-full transition-all z-30 select-none flex items-center justify-center border-l border-r ${
+              className={`hidden md:flex w-[4px] hover:w-[6px] bg-transparent hover:bg-zinc-700 cursor-col-resize h-full transition-all z-30 select-none items-center justify-center border-l border-r ${
                 getThemeClass("border-zinc-200 hover:border-zinc-300", "border-zinc-900 hover:border-zinc-800")
               } ${
                 isDraggingSidebar ? getThemeClass("bg-zinc-300 w-[6px]", "bg-zinc-650 w-[6px]") : ""
@@ -599,7 +594,7 @@ export default function Home() {
           {/* Horizontal Resize Bar Handle */}
           <div
             onMouseDown={startDraggingDrawer}
-            className={`h-[4px] hover:h-[6px] cursor-row-resize w-full transition-all z-20 select-none flex items-center justify-center border-t ${
+            className={`hidden md:flex h-[4px] hover:h-[6px] cursor-row-resize w-full transition-all z-20 select-none items-center justify-center border-t ${
               getThemeClass("bg-zinc-200 hover:bg-zinc-300 border-zinc-200", "bg-zinc-900 hover:bg-zinc-700 border-zinc-900")
             } ${
               isDraggingDrawer ? getThemeClass("bg-zinc-300 h-[6px]", "bg-zinc-600 h-[6px]") : ""

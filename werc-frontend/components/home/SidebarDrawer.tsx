@@ -220,10 +220,10 @@ export default function SidebarDrawer({
 
   return (
     <div 
-      style={{ width: `${sidebarWidth}px` }}
-      className={`h-full border-r flex flex-col p-4 z-10 select-none relative ${
+      className={`h-full border-r flex flex-col p-4 select-none absolute md:relative left-12 md:left-0 w-[calc(100vw-48px)] md:w-[var(--sidebar-width)] z-40 md:z-10 transition-all ${
         getThemeClass("bg-zinc-50 border-zinc-200", "bg-zinc-950 border-zinc-900")
       }`}
+      style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
     >
       
       {/* FILE MANAGER PANEL */}
