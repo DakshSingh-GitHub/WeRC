@@ -65,10 +65,12 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 w-full border-b border-zinc-900 bg-[#0a0a0a]/90 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {/* Logo Badge matching the screenshot WR */}
-            <div className="flex items-center justify-center w-7 h-7 bg-zinc-900 rounded border border-zinc-800 text-[11px] font-bold text-zinc-300">
-              WR
-            </div>
+            {/* Logo image from public/logo/logo.png */}
+            <img 
+              src="/logo/logo.png" 
+              alt="WeRC Logo" 
+              className="h-6 w-6 object-contain rounded"
+            />
             <span className="text-sm font-semibold tracking-tight text-white">WeRC</span>
           </div>
 

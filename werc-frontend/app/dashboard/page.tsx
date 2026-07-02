@@ -81,6 +81,23 @@ export default function DashboardPage() {
         router.push("/accounts");
       } else {
         setUser(session.user);
+        
+        // Try to load from cache
+        const cacheKey = `werc_dashboard_cache_${session.user.id}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (parsed.profile) setProfile(parsed.profile);
+            if (parsed.interviewHistory) setInterviewHistory(parsed.interviewHistory);
+            if (parsed.interviewsTaken) setInterviewsTaken(parsed.interviewsTaken);
+            if (parsed.codeHistory) setCodeHistory(parsed.codeHistory);
+            setPageLoading(false); // Disable loading bar immediately!
+          } catch (e) {
+            console.error("Failed to parse dashboard cache", e);
+          }
+        }
+        
         fetchDashboardData(session.user.id);
       }
     });
@@ -108,19 +125,18 @@ export default function DashboardPage() {
 
       if (pError) throw pError;
 
-      if (pData) {
-        setProfile(pData);
-      } else {
+      let currentProfile = pData;
+      if (!currentProfile) {
         // Create default profile
-        const defaultProfile: UserProfile = {
+        currentProfile = {
           id: userId,
           full_name: user?.user_metadata?.full_name || "New User",
           username: user?.user_metadata?.username || user?.email?.split("@")[0] || "user",
           country: user?.user_metadata?.country || "United States",
           bio: ""
         };
-        setProfile(defaultProfile);
       }
+      setProfile(currentProfile);
 
       // 2. Fetch interview history
       const { data: intHistory, error: intError } = await supabase
@@ -129,9 +145,8 @@ export default function DashboardPage() {
         .eq("user_id", userId)
         .order("created_at", { ascending: false });
 
-      if (!intError && intHistory) {
-        setInterviewHistory(intHistory);
-      }
+      const finalIntHistory = (!intError && intHistory) ? intHistory : [];
+      setInterviewHistory(finalIntHistory);
 
       // 3. Fetch interviews taken
       const { data: intTaken, error: takenError } = await supabase
@@ -140,9 +155,8 @@ export default function DashboardPage() {
         .eq("interviewer_id", userId)
         .order("created_at", { ascending: false });
 
-      if (!takenError && intTaken) {
-        setInterviewsTaken(intTaken);
-      }
+      const finalIntTaken = (!takenError && intTaken) ? intTaken : [];
+      setInterviewsTaken(finalIntTaken);
 
       // 4. Fetch code history
       const { data: codeHist, error: codeError } = await supabase
@@ -151,9 +165,17 @@ export default function DashboardPage() {
         .eq("user_id", userId)
         .order("created_at", { ascending: false });
 
-      if (!codeError && codeHist) {
-        setCodeHistory(codeHist);
-      }
+      const finalCodeHist = (!codeError && codeHist) ? codeHist : [];
+      setCodeHistory(finalCodeHist);
+
+      // Write to localStorage cache
+      const cacheData = {
+        profile: currentProfile,
+        interviewHistory: finalIntHistory,
+        interviewsTaken: finalIntTaken,
+        codeHistory: finalCodeHist
+      };
+      localStorage.setItem(`werc_dashboard_cache_${userId}`, JSON.stringify(cacheData));
 
     } catch (err: any) {
       console.error("Error loading dashboard data:", err);
@@ -184,6 +206,15 @@ export default function DashboardPage() {
 
       if (error) throw error;
       setProfileSuccess(true);
+
+      // Update cache
+      const cacheKey = `werc_dashboard_cache_${profile.id}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        parsed.profile = profile;
+        localStorage.setItem(cacheKey, JSON.stringify(parsed));
+      }
     } catch (err: any) {
       setProfileError(err.message || "Could not save profile changes.");
     } finally {
@@ -220,6 +251,9 @@ export default function DashboardPage() {
   };
 
   const handleSignOut = async () => {
+    if (user) {
+      localStorage.removeItem(`werc_dashboard_cache_${user.id}`);
+    }
     await supabase.auth.signOut();
     router.push("/accounts");
   };
@@ -233,9 +267,12 @@ export default function DashboardPage() {
 
       if (error1) throw error1;
 
-      setInterviewsTaken(prev =>
-        prev.map(item => (item.id === id ? { ...item, status: verdict } : item))
-      );
+      let updatedTaken: InterviewTaken[] = [];
+      setInterviewsTaken(prev => {
+        const next = prev.map(item => (item.id === id ? { ...item, status: verdict } : item));
+        updatedTaken = next;
+        return next;
+      });
 
       const roomCodeMatch = itemTitle.match(/\((WERC-[A-Z0-9]+)\)/);
       if (roomCodeMatch) {
@@ -244,6 +281,17 @@ export default function DashboardPage() {
           .from("interview_history")
           .update({ status: verdict })
           .eq("title", `Coding Interview (${code})`);
+      }
+
+      // Update cache
+      if (user) {
+        const cacheKey = `werc_dashboard_cache_${user.id}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          parsed.interviewsTaken = updatedTaken;
+          localStorage.setItem(cacheKey, JSON.stringify(parsed));
+        }
       }
     } catch (err) {
       console.error("Failed to update candidate verdict:", err);
@@ -267,13 +315,13 @@ export default function DashboardPage() {
       {/* Top Header Row */}
       <header className="h-14 px-6 border-b border-zinc-900 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link
-            href="/"
-            className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 transition-colors"
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer bg-transparent border-none p-0 focus:outline-none"
           >
             <ArrowLeft className="h-4 w-4" />
             <span>workspace</span>
-          </Link>
+          </button>
           <div className="h-4 w-px bg-zinc-900" />
           <span className="text-zinc-200 font-bold uppercase tracking-wider text-[11px]">// user_dashboard</span>
         </div>

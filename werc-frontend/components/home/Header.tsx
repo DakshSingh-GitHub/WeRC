@@ -67,14 +67,16 @@ export default function Header({
       
       {/* Left Side: Brand Logo */}
       <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <img 
-            src="/logo/logo.png" 
-            alt="WeRC Logo" 
-            className="h-6 w-6 object-contain rounded"
-          />
-          <span className="text-sm font-semibold tracking-tight">WeRC</span>
-        </div>
+        <Link href={"/"}>
+          <div className="flex items-center gap-2">
+            <img 
+              src="/logo/logo.png" 
+              alt="WeRC Logo" 
+              className="h-6 w-6 object-contain rounded"
+            />
+            <span className="text-sm font-semibold tracking-tight">WeRC</span>
+          </div>
+        </Link>
         <div className={`h-4 w-px ${getThemeClass("bg-zinc-200", "bg-zinc-900")}`} />
         {activeRoomCode && (
           <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-[10px] font-bold tracking-wider uppercase animate-pulse select-none">
