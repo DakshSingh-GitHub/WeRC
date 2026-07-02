@@ -1,7 +1,11 @@
 "use client";
 
 import React from "react";
-import { FileCode, Database, RefreshCw, Play, ChevronDown, User, LogOut, Settings } from "lucide-react";
+import { FileCode, Database, RefreshCw, Play, ChevronDown, User, LogOut, Settings, LogIn } from "lucide-react";
+
+import Link from "next/link";
+import { supabase } from "../../app/config/supabase";
+import { User as SupabaseUser } from "@supabase/supabase-js";
 
 interface HeaderProps {
   language: string;
@@ -12,6 +16,7 @@ interface HeaderProps {
   handleRun: () => void;
   getThemeClass: (light: string, dark: string) => string;
   triggerAlert: (title: string, message: string) => void;
+  user: SupabaseUser | null;
 }
 
 export default function Header({
@@ -22,7 +27,8 @@ export default function Header({
   isRunning,
   handleRun,
   getThemeClass,
-  triggerAlert
+  triggerAlert,
+  user
 }: HeaderProps) {
   const [showProfileMenu, setShowProfileMenu] = React.useState(false);
   const profileContainerRef = React.useRef<HTMLDivElement>(null);
@@ -109,72 +115,96 @@ export default function Header({
 
         <div className={`h-4 w-px ${getThemeClass("bg-zinc-200", "bg-zinc-900")}`} />
 
-        {/* Profile Dropdown Container */}
-        <div className="relative" ref={profileContainerRef}>
-          <button
-            onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all border ${
-              showProfileMenu 
-                ? getThemeClass("bg-zinc-200 border-zinc-300 text-zinc-900", "bg-zinc-900 border-zinc-800 text-white") 
-                : getThemeClass("bg-transparent border-transparent text-zinc-650 hover:bg-zinc-200", "bg-transparent border-transparent text-zinc-400 hover:bg-zinc-900")
+        {/* Profile Dropdown Container / Login Button */}
+        {!user ? (
+          <Link
+            href="/accounts"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-semibold transition-all cursor-pointer ${
+              getThemeClass(
+                "bg-zinc-200 border-zinc-300 text-zinc-900 hover:bg-zinc-300", 
+                "bg-zinc-900 border-zinc-800 text-zinc-355 hover:bg-zinc-800 hover:text-white"
+              )
             }`}
-            title="Profile Management"
           >
-            <div className={`h-6 w-6 rounded-full flex items-center justify-center font-bold text-xs shadow-sm border ${
-              getThemeClass("bg-zinc-200 border-zinc-300 text-zinc-850", "bg-indigo-650 border-indigo-500/30 text-white")
-            }`}>
-              U
-            </div>
-            <span className="text-sm font-semibold select-none hidden md:inline">Hi User</span>
-            <ChevronDown className="h-3 w-3 text-zinc-500 hidden md:block" />
-          </button>
-
-          {/* Profile Menu Popover */}
-          {showProfileMenu && (
-            <div className={`absolute right-0 mt-2 z-[100] w-52 py-1.5 rounded-lg border shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 ${
-              getThemeClass("bg-white border-zinc-200 text-zinc-700", "bg-zinc-900 border-zinc-800 text-zinc-300")
-            }`}>
-              <div className={`px-3 py-2 border-b select-none ${getThemeClass("border-zinc-200", "border-zinc-800")}`}>
-                <p className={`text-sm font-semibold ${getThemeClass("text-zinc-900", "text-white")}`}>Hi User</p>
-                <p className="text-[11px] text-zinc-500 truncate">user@werc.io</p>
+            <LogIn className="h-4 w-4" />
+            <span>Login/Signup</span>
+          </Link>
+        ) : (
+          <div className="relative" ref={profileContainerRef}>
+            <button
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all border ${
+                showProfileMenu 
+                  ? getThemeClass("bg-zinc-200 border-zinc-300 text-zinc-900", "bg-zinc-900 border-zinc-800 text-white") 
+                  : getThemeClass("bg-transparent border-transparent text-zinc-650 hover:bg-zinc-200", "bg-transparent border-transparent text-zinc-400 hover:bg-zinc-900")
+              }`}
+              title="Profile Management"
+            >
+              <div className={`h-6 w-6 rounded-full flex items-center justify-center font-bold text-xs uppercase shadow-sm border ${
+                getThemeClass("bg-zinc-200 border-zinc-300 text-zinc-850", "bg-indigo-650 border-indigo-500/30 text-white")
+              }`}>
+                {user.user_metadata?.display_name?.[0] || user.email?.[0] || "U"}
               </div>
+              <span className="text-sm font-semibold select-none hidden md:inline">
+                Hi {user.user_metadata?.display_name || user.email?.split("@")[0] || "User"}
+              </span>
+              <ChevronDown className="h-3 w-3 text-zinc-500 hidden md:block" />
+            </button>
 
-              <div className="py-1">
-                <button
-                  onClick={() => triggerAlert("Profile Info", "Profile Settings are not wired up yet.")}
-                  className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 transition-colors ${
-                    getThemeClass("hover:bg-zinc-100 text-zinc-755", "hover:bg-zinc-800 text-zinc-300")
-                  }`}
-                >
-                  <User className="h-3.5 w-3.5" />
-                  My Profile
-                </button>
+            {/* Profile Menu Popover */}
+            {showProfileMenu && (
+              <div className={`absolute right-0 mt-2 z-[100] w-52 py-1.5 rounded-lg border shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 ${
+                getThemeClass("bg-white border-zinc-200 text-zinc-700", "bg-zinc-900 border-zinc-800 text-zinc-300")
+              }`}>
+                <div className={`px-3 py-2 border-b select-none ${getThemeClass("border-zinc-200", "border-zinc-800")}`}>
+                  <p className={`text-sm font-semibold uppercase ${getThemeClass("text-zinc-900", "text-white")}`}>
+                    {user.user_metadata?.display_name || user.email?.split("@")[0] || "User"}
+                  </p>
+                  <p className="text-[11px] text-zinc-550 truncate">{user.email}</p>
+                </div>
 
-                <button
-                  onClick={() => triggerAlert("Account Settings", "Account Settings are not wired up yet.")}
-                  className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 transition-colors ${
-                    getThemeClass("hover:bg-zinc-100 text-zinc-755", "hover:bg-zinc-800 text-zinc-300")
-                  }`}
-                >
-                  <Settings className="h-3.5 w-3.5" />
-                  Account Settings
-                </button>
+                <div className="py-1">
+                  <Link
+                    href="/dashboard"
+                    onClick={() => setShowProfileMenu(false)}
+                    className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 transition-colors ${
+                      getThemeClass("hover:bg-zinc-100 text-zinc-755", "hover:bg-zinc-800 text-zinc-300")
+                    }`}
+                  >
+                    <User className="h-3.5 w-3.5" />
+                    My Profile
+                  </Link>
 
-                <div className={`my-1 border-t ${getThemeClass("border-zinc-200", "border-zinc-800")}`} />
+                  <Link
+                    href="/dashboard"
+                    onClick={() => setShowProfileMenu(false)}
+                    className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 transition-colors ${
+                      getThemeClass("hover:bg-zinc-100 text-zinc-755", "hover:bg-zinc-800 text-zinc-300")
+                    }`}
+                  >
+                    <Settings className="h-3.5 w-3.5" />
+                    Account Settings
+                  </Link>
 
-                <button
-                  onClick={() => triggerAlert("Sign Out", "Logout is not wired up yet.")}
-                  className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 text-rose-500 transition-colors ${
-                    getThemeClass("hover:bg-zinc-100", "hover:bg-zinc-800")
-                  }`}
-                >
-                  <LogOut className="h-3.5 w-3.5" />
-                  Log Out
-                </button>
+                  <div className={`my-1 border-t ${getThemeClass("border-zinc-200", "border-zinc-800")}`} />
+
+                  <button
+                    onClick={async () => {
+                      setShowProfileMenu(false);
+                      await supabase.auth.signOut();
+                    }}
+                    className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 text-rose-500 transition-colors ${
+                      getThemeClass("hover:bg-zinc-100", "hover:bg-zinc-800")
+                    }`}
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                    Log Out
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
       </div>
     </header>

@@ -13,6 +13,8 @@ import ContextMenu from "../components/home/ContextMenu";
 import AlertModal from "../components/modals/AlertModal";
 import PromptModal from "../components/modals/PromptModal";
 import ConfirmModal from "../components/modals/ConfirmModal";
+import { supabase } from "./config/supabase";
+import { User } from "@supabase/supabase-js";
 
 const INITIAL_FOLDERS: string[] = [];
 const INITIAL_FILES: CodeFile[] = [
@@ -38,6 +40,25 @@ export default function Home() {
   const [language, setLanguage] = useState<string>("python");
   const [fontSize, setFontSize] = useState<number>(14);
   const [uiScale, setUiScale] = useState<"sm" | "md" | "lg">("md");
+
+  // Authentication State
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    // Listen to changes in auth state
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   // Multi-file Workspace States
   const [files, setFiles] = useState<CodeFile[]>(INITIAL_FILES);
@@ -378,6 +399,23 @@ export default function Home() {
 
       const data: RunCodeResponse = await response.json();
       setResult(data);
+
+      if (user) {
+        const activeFile = files.find(f => f.path === activeFilePath);
+        const codeContent = activeFile ? activeFile.content : "";
+        try {
+          await supabase
+            .from("code_history")
+            .insert({
+              user_id: user.id,
+              filename: activeFilePath,
+              code: codeContent,
+              status: data.status || "success"
+            });
+        } catch (dbErr) {
+          console.warn("Failed to write to code_history table:", dbErr);
+        }
+      }
     } catch (err: any) {
       console.error(err);
       setErrorMsg(err.message || "An unexpected error occurred during execution.");
@@ -491,6 +529,7 @@ export default function Home() {
         handleRun={handleRun}
         getThemeClass={getThemeClass}
         triggerAlert={triggerAlert}
+        user={user}
       />
 
       {/* Main Workspace Body */}
