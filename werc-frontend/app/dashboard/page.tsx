@@ -34,6 +34,7 @@ interface InterviewTaken {
   title: string;
   status: string;
   created_at: string;
+  notes?: string;
 }
 
 interface CodeHistory {
@@ -221,6 +222,32 @@ export default function DashboardPage() {
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     router.push("/accounts");
+  };
+
+  const handleVerdictUpdate = async (id: string, itemTitle: string, verdict: "Accepted" | "Rejected") => {
+    try {
+      const { error: error1 } = await supabase
+        .from("interviews_taken")
+        .update({ status: verdict })
+        .eq("id", id);
+
+      if (error1) throw error1;
+
+      setInterviewsTaken(prev =>
+        prev.map(item => (item.id === id ? { ...item, status: verdict } : item))
+      );
+
+      const roomCodeMatch = itemTitle.match(/\((WERC-[A-Z0-9]+)\)/);
+      if (roomCodeMatch) {
+        const code = roomCodeMatch[1];
+        await supabase
+          .from("interview_history")
+          .update({ status: verdict })
+          .eq("title", `Coding Interview (${code})`);
+      }
+    } catch (err) {
+      console.error("Failed to update candidate verdict:", err);
+    }
   };
 
   if (pageLoading) {
@@ -538,16 +565,50 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     interviewsTaken.map((item) => (
-                      <div key={item.id} className="border border-zinc-900 rounded p-4 flex justify-between items-center bg-zinc-900/10">
-                        <div>
-                          <div className="font-bold text-white text-xs">{item.title}</div>
-                          <div className="text-[10px] text-zinc-500 mt-1">
-                            Date: {new Date(item.created_at).toLocaleDateString()} | Candidate: {item.candidate_name}
+                      <div key={item.id} className="border border-zinc-900 rounded p-4 flex flex-col gap-3 bg-zinc-900/10">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="font-bold text-white text-xs">{item.title}</div>
+                            <div className="text-[10px] text-zinc-500 mt-1">
+                              Date: {new Date(item.created_at).toLocaleDateString()} | Candidate: {item.candidate_name}
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            {item.status === "Pending" && (
+                              <div className="flex items-center gap-1.5 shrink-0 select-none">
+                                <button
+                                  onClick={() => handleVerdictUpdate(item.id, item.title, "Accepted")}
+                                  className="px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 hover:text-white transition-all text-[9px] font-bold uppercase cursor-pointer"
+                                >
+                                  Accept
+                                </button>
+                                <button
+                                  onClick={() => handleVerdictUpdate(item.id, item.title, "Rejected")}
+                                  className="px-2 py-1 rounded bg-rose-500/10 border border-rose-500/20 text-rose-450 hover:bg-rose-500/20 hover:text-white transition-all text-[9px] font-bold uppercase cursor-pointer"
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            )}
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
+                              item.status === "Accepted"
+                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                : item.status === "Rejected"
+                                ? "bg-rose-500/10 text-rose-450 border-rose-500/20"
+                                : "bg-indigo-500/10 text-indigo-400 border-indigo-500/20"
+                            }`}>
+                              {item.status}
+                            </span>
                           </div>
                         </div>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 uppercase">
-                          {item.status}
-                        </span>
+
+                        {item.notes && (
+                          <div className="text-[10px] text-zinc-400 border-t border-zinc-900/50 pt-2 font-sans leading-relaxed">
+                            <span className="font-bold text-zinc-500 select-none uppercase text-[8px] tracking-wide block mb-0.5">Interviewer Notes</span>
+                            <span className="italic">"{item.notes}"</span>
+                          </div>
+                        )}
                       </div>
                     ))
                   )}

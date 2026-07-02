@@ -10,9 +10,11 @@ import SidebarTabs from "../components/home/SidebarTabs";
 import SidebarDrawer from "../components/home/SidebarDrawer";
 import ConsoleDrawer from "../components/home/ConsoleDrawer";
 import ContextMenu from "../components/home/ContextMenu";
+import BaseModal from "../components/modals/BaseModal";
 import AlertModal from "../components/modals/AlertModal";
 import PromptModal from "../components/modals/PromptModal";
 import ConfirmModal from "../components/modals/ConfirmModal";
+import InterviewModal from "../components/modals/InterviewModal";
 import { supabase } from "./config/supabase";
 import { User } from "@supabase/supabase-js";
 
@@ -43,6 +45,13 @@ export default function Home() {
 
   // Authentication State
   const [user, setUser] = useState<User | null>(null);
+
+  // Live Interview States
+  const [roomCode, setRoomCode] = useState<string | null>(null);
+  const [isHost, setIsHost] = useState(false);
+  const [isHostingModalOpen, setIsHostingModalOpen] = useState(false);
+  const [verdictModalOpen, setVerdictModalOpen] = useState(false);
+  const isUpdatingFromRemoteRef = useRef(false);
 
   useEffect(() => {
     // Check initial session
@@ -97,10 +106,11 @@ export default function Home() {
   const [interviewerNotes, setInterviewerNotes] = useState<string>("");
 
   // Reusable Modal States
-  const [alertConfig, setAlertConfig] = useState<{ isOpen: boolean; title: string; message: string }>({
+  const [alertConfig, setAlertConfig] = useState<{ isOpen: boolean; title: string; message: string; type?: "info" | "success" | "error" }>({
     isOpen: false,
     title: "",
-    message: ""
+    message: "",
+    type: "error"
   });
   
   const [promptConfig, setPromptConfig] = useState<{ isOpen: boolean; title: string; placeholder: string; defaultValue: string; onSubmit: (val: string) => void }>({
@@ -118,8 +128,8 @@ export default function Home() {
     onConfirm: () => {}
   });
 
-  const triggerAlert = (title: string, message: string) => {
-    setAlertConfig({ isOpen: true, title, message });
+  const triggerAlert = (title: string, message: string, type?: "info" | "success" | "error") => {
+    setAlertConfig({ isOpen: true, title, message, type });
   };
 
   const triggerPrompt = (title: string, placeholder: string, defaultValue: string, onSubmit: (val: string) => void) => {
@@ -436,6 +446,261 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handleGlobalKeyDown);
   }, [handleRun]);
 
+  // Live Interview Collaborative Helper Functions and Hooks
+  const updateUrlRoom = (code: string | null) => {
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (code) {
+        url.searchParams.set("room", code);
+      } else {
+        url.searchParams.delete("room");
+      }
+      window.history.pushState({}, "", url.toString());
+    }
+  };
+
+  const handleHostSession = async () => {
+    if (!user) {
+      triggerAlert("Authentication Required", "Please log in first to host a live interview session.");
+      return;
+    }
+
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let randomCode = "WERC-";
+    for (let i = 0; i < 6; i++) {
+      randomCode += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+
+    try {
+      const { error } = await supabase
+        .from("interview_sessions")
+        .insert({
+          code: randomCode,
+          host_id: user.id,
+          files: files,
+          active_file_path: activeFilePath,
+          entrypoint: entrypoint,
+          language: language,
+          input_data: inputData
+        });
+
+      if (error) throw error;
+
+      setIsHost(true);
+      setRoomCode(randomCode);
+      updateUrlRoom(randomCode);
+      setIsHostingModalOpen(true);
+    } catch (err: any) {
+      console.error(err);
+      triggerAlert("Host Error", err.message || "Failed to create an interview session.");
+    }
+  };
+
+  const handleJoinSession = async (code: string) => {
+    const formattedCode = code.trim().toUpperCase();
+    if (!formattedCode) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("interview_sessions")
+        .select("*")
+        .eq("code", formattedCode)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!data) {
+        triggerAlert("Session Not Found", `No active session found with code "${formattedCode}".`);
+        return;
+      }
+
+      isUpdatingFromRemoteRef.current = true;
+      if (data.files) setFiles(data.files);
+      if (data.active_file_path) setActiveFilePath(data.active_file_path);
+      if (data.entrypoint) setEntrypoint(data.entrypoint);
+      if (data.language) setLanguage(data.language);
+      if (data.input_data) setInputData(data.input_data);
+      setTimeout(() => {
+        isUpdatingFromRemoteRef.current = false;
+      }, 100);
+
+      const userIsHost = user ? data.host_id === user.id : false;
+      setIsHost(userIsHost);
+      if (!userIsHost && activeSidebarTab === "notes") {
+        setActiveSidebarTab("files");
+      }
+
+      setRoomCode(formattedCode);
+      updateUrlRoom(formattedCode);
+      triggerAlert("Joined Session", `Successfully joined session "${formattedCode}".`, "success");
+    } catch (err: any) {
+      console.error(err);
+      triggerAlert("Join Error", err.message || "Failed to join session.");
+    }
+  };
+
+  const handleLeaveSession = () => {
+    setRoomCode(null);
+    setIsHost(false);
+    updateUrlRoom(null);
+    triggerAlert("Left Session", "You have left the collaborative session.", "success");
+  };
+
+  const handleEndSession = async () => {
+    if (!roomCode) return;
+    setVerdictModalOpen(true);
+  };
+
+  const endInterviewWithVerdict = async (verdict: "Accepted" | "Rejected" | "Pending") => {
+    if (!roomCode) return;
+
+    // 1. Broadcast an "interview-ended" event to let applicant insert their history record
+    const channel = supabase.channel(`room:${roomCode}`);
+    await channel.send({
+      type: "broadcast",
+      event: "interview-ended",
+      payload: {
+        hostName: user?.user_metadata?.display_name || user?.email || "Interviewer",
+        verdict: verdict
+      }
+    });
+
+    // 2. Insert conduct record into interviews_taken table with verdict & notes
+    if (user) {
+      try {
+        await supabase
+          .from("interviews_taken")
+          .insert({
+            interviewer_id: user.id,
+            candidate_name: "Applicant",
+            title: `Coding Interview (${roomCode})`,
+            status: verdict,
+            notes: interviewerNotes || null
+          });
+      } catch (err) {
+        console.warn("Failed to insert interviews_taken record:", err);
+      }
+    }
+
+    // 3. Delete session from interview_sessions
+    try {
+      await supabase
+        .from("interview_sessions")
+        .delete()
+        .eq("code", roomCode);
+    } catch (err) {
+      console.warn("Failed to delete interview session:", err);
+    }
+
+    setRoomCode(null);
+    setIsHost(false);
+    updateUrlRoom(null);
+    setVerdictModalOpen(false);
+    triggerAlert("Interview Ended", `The interview has ended and session has been closed. Candidate verdict: ${verdict}.`, "success");
+  };
+
+  // Check URL search parameters for join room parameter
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const room = urlParams.get("room");
+      if (room && !roomCode) {
+        handleJoinSession(room);
+      }
+    }
+  }, [user]);
+
+  // Realtime Broadcast Channel Listener
+  useEffect(() => {
+    if (!roomCode) return;
+
+    const channel = supabase.channel(`room:${roomCode}`, {
+      config: {
+        broadcast: { self: false }
+      }
+    });
+
+    channel
+      .on("broadcast", { event: "workspace-sync" }, (payload: any) => {
+        const { files: remoteFiles, activeFilePath: remoteActive, entrypoint: remoteEntry, language: remoteLang, inputData: remoteInput } = payload.payload;
+
+        isUpdatingFromRemoteRef.current = true;
+        if (remoteFiles) setFiles(remoteFiles);
+        if (remoteActive) setActiveFilePath(remoteActive);
+        if (remoteEntry) setEntrypoint(remoteEntry);
+        if (remoteLang) setLanguage(remoteLang);
+        if (remoteInput !== undefined) setInputData(remoteInput);
+        setTimeout(() => {
+          isUpdatingFromRemoteRef.current = false;
+        }, 100);
+      })
+      .on("broadcast", { event: "interview-ended" }, async (payload: any) => {
+        const hostName = payload.payload?.hostName || "Interviewer";
+
+        if (user) {
+          try {
+            await supabase
+              .from("interview_history")
+              .insert({
+                user_id: user.id,
+                title: `Coding Interview (${roomCode})`,
+                interviewer_name: hostName,
+                status: payload.payload?.verdict || "Pending"
+              });
+          } catch (err) {
+            console.warn("Failed to insert interview_history record:", err);
+          }
+        }
+
+        setRoomCode(null);
+        setIsHost(false);
+        updateUrlRoom(null);
+        triggerAlert("Interview Ended", "The host has ended the interview session.", "success");
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [roomCode]);
+
+  // Broadcast local changes to channel and save to DB
+  useEffect(() => {
+    if (!roomCode || isUpdatingFromRemoteRef.current) return;
+
+    const channel = supabase.channel(`room:${roomCode}`);
+    channel.send({
+      type: "broadcast",
+      event: "workspace-sync",
+      payload: {
+        files,
+        activeFilePath,
+        entrypoint,
+        language,
+        inputData
+      }
+    });
+
+    const delayDebounce = setTimeout(async () => {
+      try {
+        await supabase
+          .from("interview_sessions")
+          .update({
+            files,
+            active_file_path: activeFilePath,
+            entrypoint,
+            language,
+            input_data: inputData
+          })
+          .eq("code", roomCode);
+      } catch (err) {
+        console.warn("Failed to backup session state to Supabase table:", err);
+      }
+    }, 2000);
+
+    return () => clearTimeout(delayDebounce);
+  }, [roomCode, files, activeFilePath, entrypoint, language, inputData]);
+
   const toggleSidebarTab = (tab: "files" | "settings" | "notes") => {
     if (activeSidebarTab === tab && isSidebarExpanded) {
       setIsSidebarExpanded(false);
@@ -530,6 +795,23 @@ export default function Home() {
         getThemeClass={getThemeClass}
         triggerAlert={triggerAlert}
         user={user}
+        activeRoomCode={roomCode}
+        isHost={isHost}
+        onHostSession={handleHostSession}
+        onJoinSession={() => {
+          triggerPrompt(
+            "Join Interview",
+            "Enter Session Code (e.g. WERC-XXXX)",
+            "",
+            (code) => {
+              if (code.trim()) {
+                handleJoinSession(code.trim());
+              }
+            }
+          );
+        }}
+        onLeaveSession={handleLeaveSession}
+        onEndSession={handleEndSession}
       />
 
       {/* Main Workspace Body */}
@@ -542,6 +824,7 @@ export default function Home() {
           toggleSidebarTab={toggleSidebarTab}
           getThemeClass={getThemeClass}
           triggerAlert={triggerAlert}
+          showNotesTab={!roomCode || isHost}
         />
 
         {/* 2b. Collapsible Sidebar Drawer Panel */}
@@ -666,6 +949,7 @@ export default function Home() {
         title={alertConfig.title}
         message={alertConfig.message}
         getThemeClass={getThemeClass}
+        type={alertConfig.type}
       />
 
       {/* Custom Prompt Modal */}
@@ -689,6 +973,53 @@ export default function Home() {
         confirmLabel="Delete"
         getThemeClass={getThemeClass}
       />
+
+      {/* Live Interview Info Modal */}
+      <InterviewModal
+        isOpen={isHostingModalOpen}
+        onClose={() => setIsHostingModalOpen(false)}
+        code={roomCode || ""}
+        getThemeClass={getThemeClass}
+      />
+
+      {/* Verdict Selection Modal */}
+      <BaseModal
+        isOpen={verdictModalOpen}
+        onClose={() => setVerdictModalOpen(false)}
+        title="Submit Candidate Verdict"
+        getThemeClass={getThemeClass}
+      >
+        <div className="flex flex-col gap-4 py-2 select-none text-center">
+          <p className={`text-sm ${getThemeClass("text-zinc-650", "text-zinc-400")}`}>
+            Provide a verdict for this interview before ending the session.
+          </p>
+
+          <div className="flex flex-col gap-2 mt-2">
+            <button
+              onClick={() => endInterviewWithVerdict("Accepted")}
+              className="w-full py-2.5 rounded-lg font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white transition-all active:scale-[0.98] cursor-pointer"
+            >
+              Accept Candidate
+            </button>
+            
+            <button
+              onClick={() => endInterviewWithVerdict("Rejected")}
+              className="w-full py-2.5 rounded-lg font-bold text-xs bg-rose-600 hover:bg-rose-700 text-white transition-all active:scale-[0.98] cursor-pointer"
+            >
+              Reject Candidate
+            </button>
+
+            <button
+              onClick={() => endInterviewWithVerdict("Pending")}
+              className={`w-full py-2.5 rounded-lg font-bold text-xs border transition-all active:scale-[0.98] cursor-pointer ${
+                getThemeClass("bg-zinc-100 hover:bg-zinc-200 border-zinc-300 text-zinc-700", "bg-zinc-900 hover:bg-zinc-800 border-zinc-800 text-zinc-300")
+              }`}
+            >
+              Decide Later (Pending)
+            </button>
+          </div>
+        </div>
+      </BaseModal>
     </main>
   );
 }

@@ -9,6 +9,7 @@ interface SidebarTabsProps {
   toggleSidebarTab: (tab: "files" | "settings" | "notes") => void;
   getThemeClass: (light: string, dark: string) => string;
   triggerAlert: (title: string, message: string) => void;
+  showNotesTab: boolean;
 }
 
 export default function SidebarTabs({
@@ -16,7 +17,8 @@ export default function SidebarTabs({
   isSidebarExpanded,
   toggleSidebarTab,
   getThemeClass,
-  triggerAlert
+  triggerAlert,
+  showNotesTab
 }: SidebarTabsProps) {
   const [showSessionPopup, setShowSessionPopup] = React.useState(false);
   const popupContainerRef = React.useRef<HTMLDivElement>(null);
@@ -63,17 +65,19 @@ export default function SidebarTabs({
         >
           <Sliders className="h-4 w-4" />
         </button>
-        <button
-          onClick={() => toggleSidebarTab("notes")}
-          className={`p-2 rounded-lg transition-all ${
-            activeSidebarTab === "notes" && isSidebarExpanded 
-              ? getThemeClass("text-zinc-900 bg-zinc-200", "text-white bg-zinc-900") 
-              : "text-zinc-500 hover:text-zinc-400"
-          }`}
-          title="Interviewer Notes"
-        >
-          <BookOpen className="h-4 w-4" />
-        </button>
+        {showNotesTab && (
+          <button
+            onClick={() => toggleSidebarTab("notes")}
+            className={`p-2 rounded-lg transition-all ${
+              activeSidebarTab === "notes" && isSidebarExpanded 
+                ? getThemeClass("text-zinc-900 bg-zinc-200", "text-white bg-zinc-900") 
+                : "text-zinc-500 hover:text-zinc-400"
+            }`}
+            title="Interviewer Notes"
+          >
+            <BookOpen className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* Session Management Popup and Trigger */}

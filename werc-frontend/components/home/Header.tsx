@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { FileCode, Database, RefreshCw, Play, ChevronDown, User, LogOut, Settings, LogIn } from "lucide-react";
+import { FileCode, Database, RefreshCw, Play, ChevronDown, User, LogOut, Settings, LogIn, Video } from "lucide-react";
 
 import Link from "next/link";
 import { supabase } from "../../app/config/supabase";
@@ -17,6 +17,12 @@ interface HeaderProps {
   getThemeClass: (light: string, dark: string) => string;
   triggerAlert: (title: string, message: string) => void;
   user: SupabaseUser | null;
+  activeRoomCode: string | null;
+  isHost: boolean;
+  onHostSession: () => void;
+  onJoinSession: () => void;
+  onLeaveSession: () => void;
+  onEndSession: () => void;
 }
 
 export default function Header({
@@ -28,9 +34,16 @@ export default function Header({
   handleRun,
   getThemeClass,
   triggerAlert,
-  user
+  user,
+  activeRoomCode,
+  isHost,
+  onHostSession,
+  onJoinSession,
+  onLeaveSession,
+  onEndSession
 }: HeaderProps) {
   const [showProfileMenu, setShowProfileMenu] = React.useState(false);
+  const [joinCodeInput, setJoinCodeInput] = React.useState("");
   const profileContainerRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -63,6 +76,12 @@ export default function Header({
           <span className="text-sm font-semibold tracking-tight">WeRC</span>
         </div>
         <div className={`h-4 w-px ${getThemeClass("bg-zinc-200", "bg-zinc-900")}`} />
+        {activeRoomCode && (
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-[10px] font-bold tracking-wider uppercase animate-pulse select-none">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <span>Live Call: {activeRoomCode} ({isHost ? "Host" : "Applicant"})</span>
+          </div>
+        )}
 
       </div>
 
@@ -185,6 +204,58 @@ export default function Header({
                     <Settings className="h-3.5 w-3.5" />
                     Account Settings
                   </Link>
+
+                  <div className={`my-1 border-t ${getThemeClass("border-zinc-200", "border-zinc-800")}`} />
+
+                  {activeRoomCode ? (
+                    <div className="px-3 py-2 flex flex-col gap-1.5">
+                      <div className="flex items-center gap-1.5 font-semibold text-xs text-indigo-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>Live Session: {activeRoomCode} ({isHost ? "Host" : "Applicant"})</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          if (isHost) {
+                            onEndSession();
+                          } else {
+                            onLeaveSession();
+                          }
+                        }}
+                        className="w-full py-1.5 rounded text-center text-xs font-semibold text-rose-500 hover:bg-rose-500/10 border border-rose-500/20 transition-all cursor-pointer"
+                      >
+                        {isHost ? "End Interview" : "Leave Session"}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="px-3 py-2 flex flex-col gap-2">
+                      <button
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          onHostSession();
+                        }}
+                        className={`w-full px-2 py-1.5 rounded text-left text-xs flex items-center gap-2 transition-colors cursor-pointer ${
+                          getThemeClass("hover:bg-zinc-100 text-zinc-700", "hover:bg-zinc-800 text-zinc-300")
+                        }`}
+                      >
+                        <Video className="h-3.5 w-3.5 text-indigo-400" />
+                        <span>Host Interview</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          onJoinSession();
+                        }}
+                        className={`w-full px-2 py-1.5 rounded text-left text-xs flex items-center gap-2 transition-colors cursor-pointer ${
+                          getThemeClass("hover:bg-zinc-100 text-zinc-700", "hover:bg-zinc-800 text-zinc-300")
+                        }`}
+                      >
+                        <FileCode className="h-3.5 w-3.5 text-indigo-400" />
+                        <span>Join Interview</span>
+                      </button>
+                    </div>
+                  )}
 
                   <div className={`my-1 border-t ${getThemeClass("border-zinc-200", "border-zinc-800")}`} />
 
