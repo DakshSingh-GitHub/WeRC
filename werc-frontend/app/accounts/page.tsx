@@ -138,8 +138,29 @@ export default function AccountsPage() {
     setLoginError(null);
 
     try {
+      let email = loginEmail.trim();
+
+      if (!email.includes("@")) {
+        // Resolve username to email
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("email")
+          .eq("username", email.toLowerCase())
+          .maybeSingle();
+
+        if (profileError) {
+          throw new Error("Database query failed: " + profileError.message);
+        }
+
+        if (!profile || !profile.email) {
+          throw new Error("Username not found. Please use your email address.");
+        }
+
+        email = profile.email;
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: loginEmail,
+        email,
         password: loginPassword,
       });
 
@@ -154,25 +175,24 @@ export default function AccountsPage() {
   };
 
   return (
-    <div className="min-h-screen w-screen bg-zinc-950 text-zinc-300 flex flex-col items-center justify-center p-4 relative font-mono text-sm select-none">
+    <div className="h-screen w-full overflow-hidden bg-zinc-950 text-zinc-300 flex flex-col items-center justify-center p-4 relative font-mono text-sm select-none">
       
       {/* Top Left Navigation Link */}
       <Link
         href="/"
-        className="absolute top-6 left-6 flex items-center gap-2 text-zinc-505 hover:text-zinc-300 transition-colors py-1.5"
+        className="absolute top-6 left-6 flex items-center gap-2 text-zinc-500 hover:text-zinc-300 transition-colors py-1.5"
       >
         <ArrowLeft className="h-4 w-4" />
         <span>back_to_workspace</span>
       </Link>
 
       {/* Main Minimalist Box Container */}
-      <div className="w-[90%] md:w-[60%] max-w-4xl bg-zinc-950 border border-zinc-900 p-10 flex flex-col gap-8">
+      <div className="w-full max-w-lg bg-zinc-950 border border-zinc-900 p-6 flex flex-col gap-5">
         
         {/* Workspace Brand Block */}
-        <div className="flex items-center gap-2.5 pb-5 border-b border-zinc-900">
+        <div className="flex items-center gap-2.5 pb-3 border-b border-zinc-900">
           <img src="/logo/logo.png" alt="WeRC Logo" className="h-6 w-6 object-contain rounded" />
           <span className="text-base font-semibold tracking-tight text-white">WeRC Workspace</span>
-          <span className="text-xs text-zinc-600">v1.0</span>
         </div>
 
         {/* Dynamic Horizontal Sliding Panel */}
@@ -182,41 +202,41 @@ export default function AccountsPage() {
             style={{ transform: activeTab === "signup" ? "translateX(0%)" : "translateX(-50%)" }}
           >
             {/* SIGNUP SLIDE */}
-            <div className="w-1/2 pr-4 flex flex-col gap-5">
+            <div className="w-1/2 pr-4 flex flex-col gap-3">
               <div className="text-xs font-semibold text-zinc-500 tracking-wider uppercase">
                 // create_new_account
               </div>
 
               {signupSuccess ? (
-                <div className="border border-zinc-800 p-5 rounded bg-zinc-950 flex flex-col gap-3.5 text-zinc-400">
+                <div className="border border-zinc-800 p-5 rounded bg-zinc-950 flex flex-col gap-3 text-zinc-400">
                   <span className="font-bold text-white">// Registration complete</span>
-                  <span className="leading-relaxed">Confirmation link has been sent to your email address. Please verify your account.</span>
+                  <span className="leading-relaxed text-xs">Confirmation link has been sent to your email address. Please verify your account.</span>
                 </div>
               ) : (
-                <form onSubmit={handleSignup} className="flex flex-col gap-4">
+                <form onSubmit={handleSignup} className="flex flex-col gap-3">
                   {signupError && (
-                    <div className="border border-red-950/30 bg-red-950/10 p-3.5 rounded flex items-center gap-2.5 text-red-400 text-xs">
-                      <AlertCircle className="h-4.5 w-4.5 shrink-0" />
+                    <div className="border border-red-950/30 bg-red-950/10 p-2.5 rounded flex items-center gap-2 text-red-400 text-xs">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
                       <span>{signupError}</span>
                     </div>
                   )}
 
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs text-zinc-500 font-semibold tracking-wider">FULL_NAME</label>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] text-zinc-550 font-semibold tracking-wider">FULL_NAME</label>
                     <input
                       type="text"
                       required
                       value={signupName}
                       onChange={(e) => setSignupName(e.target.value)}
                       placeholder="e.g. John Doe"
-                      className="w-full bg-zinc-900 border border-zinc-900 hover:border-zinc-850 focus:border-zinc-800 rounded px-4 py-2.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all"
+                      className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-700 rounded px-3 py-1.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all text-xs"
                     />
                   </div>
 
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex justify-between items-center text-xs text-zinc-500 font-semibold tracking-wider">
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between items-center text-[10px] text-zinc-550 font-semibold tracking-wider">
                       <span>USERNAME</span>
-                      <span className="text-[10px] text-zinc-600 font-normal">a-z, 0-9, - and _ only</span>
+                      <span className="text-[9px] text-zinc-650 font-normal">a-z, 0-9, - and _ only</span>
                     </div>
                     <div className="relative flex">
                       <input
@@ -225,9 +245,9 @@ export default function AccountsPage() {
                         value={signupUsername}
                         onChange={(e) => setSignupUsername(e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, ""))}
                         placeholder="yourusername"
-                        className="flex-1 bg-zinc-900 border border-zinc-900 hover:border-zinc-850 focus:border-zinc-800 rounded pl-4 pr-24 py-2.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all"
+                        className="flex-1 bg-zinc-900 border border-zinc-800 focus:border-zinc-700 rounded pl-3 pr-24 py-1.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all text-xs"
                       />
-                      <div className="absolute right-4 top-3.5 text-[9px] font-bold select-none tracking-wider flex items-center gap-1.5">
+                      <div className="absolute right-3 top-2 text-[9px] font-bold select-none tracking-wider flex items-center gap-1.5">
                         {usernameStatus === "checking" && (
                           <span className="text-zinc-500 flex items-center gap-1 font-semibold">
                             <RefreshCw className="h-3 w-3 animate-spin" />
@@ -241,24 +261,24 @@ export default function AccountsPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs text-zinc-500 font-semibold tracking-wider">EMAIL</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] text-zinc-550 font-semibold tracking-wider">EMAIL</label>
                       <input
                         type="email"
                         required
                         value={signupEmail}
                         onChange={(e) => setSignupEmail(e.target.value)}
                         placeholder="you@domain.com"
-                        className="w-full bg-zinc-900 border border-zinc-900 hover:border-zinc-850 focus:border-zinc-800 rounded px-4 py-2.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all"
+                        className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-700 rounded px-3 py-1.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all text-xs"
                       />
                     </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs text-zinc-500 font-semibold tracking-wider">COUNTRY</label>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] text-zinc-550 font-semibold tracking-wider">COUNTRY</label>
                       <select
                         value={signupCountry}
                         onChange={(e) => setSignupCountry(e.target.value)}
-                        className="w-full bg-zinc-900 border border-zinc-900 hover:border-zinc-850 focus:border-zinc-800 rounded px-4 py-2.5 text-zinc-200 focus:outline-none transition-all cursor-pointer"
+                        className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-700 rounded px-3 py-1.5 text-zinc-200 focus:outline-none transition-all cursor-pointer text-xs"
                       >
                         {COUNTRY_OPTIONS.map((c) => (
                           <option key={c} value={c}>
@@ -269,17 +289,17 @@ export default function AccountsPage() {
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs text-zinc-500 font-semibold tracking-wider">PASSWORD</label>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] text-zinc-550 font-semibold tracking-wider">PASSWORD</label>
                     <input
                       type="password"
                       required
                       value={signupPassword}
                       onChange={(e) => setSignupPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full bg-zinc-900 border border-zinc-900 hover:border-zinc-850 focus:border-zinc-800 rounded px-4 py-2.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all"
+                      className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-700 rounded px-3 py-1.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all text-xs"
                     />
-                    <div className="flex justify-between items-center text-[10px] text-zinc-600 font-semibold mt-1">
+                    <div className="flex justify-between items-center text-[9px] text-zinc-650 font-semibold mt-0.5">
                       <span>PASSWORD STRENGTH</span>
                       <span className={signupPassword.length >= 8 ? "text-emerald-500" : signupPassword.length > 0 ? "text-amber-500" : "text-zinc-600"}>
                         {signupPassword.length >= 8 ? "STRONG" : signupPassword.length > 0 ? "WEAK" : "START TYPING"}
@@ -287,28 +307,28 @@ export default function AccountsPage() {
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs text-zinc-500 font-semibold tracking-wider">CONFIRM PASSWORD</label>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] text-zinc-550 font-semibold tracking-wider">CONFIRM PASSWORD</label>
                     <input
                       type="password"
                       required
                       value={signupConfirmPassword}
                       onChange={(e) => setSignupConfirmPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full bg-zinc-900 border border-zinc-900 hover:border-zinc-850 focus:border-zinc-800 rounded px-4 py-2.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all"
+                      className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-700 rounded px-3 py-1.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all text-xs"
                     />
                   </div>
 
                   <button
                     type="submit"
                     disabled={signupLoading}
-                    className="w-full mt-3 py-2.5 rounded bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-200 hover:text-white font-bold transition-all flex items-center justify-center gap-2 active:scale-[0.99] cursor-pointer disabled:opacity-50"
+                    className="w-full mt-1 py-2 rounded bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-200 hover:text-white font-bold transition-all flex items-center justify-center gap-2 active:scale-[0.99] cursor-pointer disabled:opacity-50 text-xs"
                   >
                     {signupLoading ? (
-                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <RefreshCw className="h-4.5 w-4.5 animate-spin" />
                     ) : (
                       <>
-                        <UserPlus className="h-4 w-4" />
+                        <UserPlus className="h-4.5 w-4.5" />
                         <span>Register</span>
                       </>
                     )}
@@ -318,53 +338,53 @@ export default function AccountsPage() {
             </div>
 
             {/* LOGIN SLIDE */}
-            <div className="w-1/2 pl-4 flex flex-col gap-5">
+            <div className="w-1/2 pl-4 flex flex-col gap-3">
               <div className="text-xs font-semibold text-zinc-500 tracking-wider uppercase">
                 // user_authentication
               </div>
 
-              <form onSubmit={handleLogin} className="flex flex-col gap-4">
+              <form onSubmit={handleLogin} className="flex flex-col gap-3">
                 {loginError && (
-                  <div className="border border-red-950/30 bg-red-950/10 p-3.5 rounded flex items-center gap-2.5 text-red-400 text-xs">
-                    <AlertCircle className="h-4.5 w-4.5 shrink-0" />
+                  <div className="border border-red-950/30 bg-red-950/10 p-2.5 rounded flex items-center gap-2 text-red-400 text-xs">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
                     <span>{loginError}</span>
                   </div>
                 )}
 
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-zinc-500 font-semibold tracking-wider">EMAIL_ADDRESS</label>
+                 <div className="flex flex-col gap-1">
+                  <label className="text-[10px] text-zinc-550 font-semibold tracking-wider">USERNAME_OR_EMAIL</label>
                   <input
-                    type="email"
+                    type="text"
                     required
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
-                    placeholder="you@domain.com"
-                    className="w-full bg-zinc-900 border border-zinc-900 hover:border-zinc-850 focus:border-zinc-800 rounded px-4 py-2.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all"
+                    placeholder="username or email"
+                    className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-700 rounded px-3 py-1.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all text-xs"
                   />
                 </div>
 
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-zinc-500 font-semibold tracking-wider">PASSWORD</label>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] text-zinc-550 font-semibold tracking-wider">PASSWORD</label>
                   <input
                     type="password"
                     required
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-zinc-900 border border-zinc-900 hover:border-zinc-850 focus:border-zinc-800 rounded px-4 py-2.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all"
+                    className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-700 rounded px-3 py-1.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all text-xs"
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={loginLoading}
-                  className="w-full mt-3 py-2.5 rounded bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-200 hover:text-white font-bold transition-all flex items-center justify-center gap-2 active:scale-[0.99] cursor-pointer disabled:opacity-50"
+                  className="w-full mt-1 py-2 rounded bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-200 hover:text-white font-bold transition-all flex items-center justify-center gap-2 active:scale-[0.99] cursor-pointer disabled:opacity-50 text-xs"
                 >
                   {loginLoading ? (
-                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <RefreshCw className="h-4.5 w-4.5 animate-spin" />
                   ) : (
                     <>
-                      <LogIn className="h-4 w-4" />
+                      <LogIn className="h-4.5 w-4.5" />
                       <span>Authenticate</span>
                     </>
                   )}
