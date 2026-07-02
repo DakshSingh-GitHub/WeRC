@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../config/supabase";
-import { ArrowLeft, UserPlus, LogIn, RefreshCw, AlertCircle } from "lucide-react";
+import { ArrowLeft, UserPlus, LogIn, RefreshCw, AlertCircle, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { COUNTRY_OPTIONS } from "../lib/utils/country-options";
 
@@ -30,6 +30,11 @@ export default function AccountsPage() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+
+  // Password visibility states
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   // Redirect if user is already logged in
   useEffect(() => {
@@ -291,14 +296,27 @@ export default function AccountsPage() {
 
                   <div className="flex flex-col gap-1">
                     <label className="text-[10px] text-zinc-550 font-semibold tracking-wider">PASSWORD</label>
-                    <input
-                      type="password"
-                      required
-                      value={signupPassword}
-                      onChange={(e) => setSignupPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-700 rounded px-3 py-1.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all text-xs"
-                    />
+                    <div className="relative w-full flex items-center">
+                      <input
+                        type={showSignupPassword ? "text" : "password"}
+                        required
+                        value={signupPassword}
+                        onChange={(e) => setSignupPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-700 rounded pl-3 pr-10 py-1.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignupPassword(!showSignupPassword)}
+                        className="absolute right-3 text-zinc-500 hover:text-zinc-300 transition-colors focus:outline-none"
+                      >
+                        {showSignupPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
                     <div className="flex justify-between items-center text-[9px] text-zinc-650 font-semibold mt-0.5">
                       <span>PASSWORD STRENGTH</span>
                       <span className={signupPassword.length >= 8 ? "text-emerald-500" : signupPassword.length > 0 ? "text-amber-500" : "text-zinc-600"}>
@@ -309,14 +327,27 @@ export default function AccountsPage() {
 
                   <div className="flex flex-col gap-1">
                     <label className="text-[10px] text-zinc-550 font-semibold tracking-wider">CONFIRM PASSWORD</label>
-                    <input
-                      type="password"
-                      required
-                      value={signupConfirmPassword}
-                      onChange={(e) => setSignupConfirmPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-700 rounded px-3 py-1.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all text-xs"
-                    />
+                    <div className="relative w-full flex items-center">
+                      <input
+                        type={showSignupConfirmPassword ? "text" : "password"}
+                        required
+                        value={signupConfirmPassword}
+                        onChange={(e) => setSignupConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-700 rounded pl-3 pr-10 py-1.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignupConfirmPassword(!showSignupConfirmPassword)}
+                        className="absolute right-3 text-zinc-500 hover:text-zinc-300 transition-colors focus:outline-none"
+                      >
+                        {showSignupConfirmPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   <button
@@ -365,14 +396,27 @@ export default function AccountsPage() {
 
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] text-zinc-550 font-semibold tracking-wider">PASSWORD</label>
-                  <input
-                    type="password"
-                    required
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-700 rounded px-3 py-1.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all text-xs"
-                  />
+                  <div className="relative w-full flex items-center">
+                    <input
+                      type={showLoginPassword ? "text" : "password"}
+                      required
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-700 rounded pl-3 pr-10 py-1.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowLoginPassword(!showLoginPassword)}
+                      className="absolute right-3 text-zinc-500 hover:text-zinc-300 transition-colors focus:outline-none"
+                    >
+                      {showLoginPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
 
                 <button
