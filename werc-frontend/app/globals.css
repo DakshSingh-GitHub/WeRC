@@ -49,3 +49,14 @@ body {
   scrollbar-width: thin;
   scrollbar-color: #27272a #09090b;
 }
+
+@keyframes progress {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+.animate-progress {
+  position: absolute;
+  height: 100%;
+  width: 50%;
+  animation: progress 2s infinite ease-in-out;
+}

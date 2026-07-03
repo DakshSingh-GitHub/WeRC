@@ -21,8 +21,8 @@ export default function InterviewModal({
   const [copiedLink, setCopiedLink] = useState(false);
 
   const shareableLink = typeof window !== "undefined"
-    ? `${window.location.origin}/?room=${code}`
-    : `/?room=${code}`;
+    ? `${window.location.origin}/we-rc?room=${code}`
+    : `/we-rc?room=${code}`;
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(code);

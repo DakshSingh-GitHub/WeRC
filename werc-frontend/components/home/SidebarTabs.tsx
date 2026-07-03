@@ -8,8 +8,13 @@ interface SidebarTabsProps {
   isSidebarExpanded: boolean;
   toggleSidebarTab: (tab: "files" | "settings" | "notes") => void;
   getThemeClass: (light: string, dark: string) => string;
-  triggerAlert: (title: string, message: string) => void;
+  triggerAlert: (title: string, message: string, type?: "info" | "success" | "error") => void;
   showNotesTab: boolean;
+  
+  // Session integration
+  roomCode: string | null;
+  onJoinSession: () => void;
+  onLeaveSession: () => void;
 }
 
 export default function SidebarTabs({
@@ -18,10 +23,34 @@ export default function SidebarTabs({
   toggleSidebarTab,
   getThemeClass,
   triggerAlert,
-  showNotesTab
+  showNotesTab,
+  roomCode,
+  onJoinSession,
+  onLeaveSession
 }: SidebarTabsProps) {
   const [showSessionPopup, setShowSessionPopup] = React.useState(false);
   const popupContainerRef = React.useRef<HTMLDivElement>(null);
+  
+  const [duration, setDuration] = React.useState("00:00:00");
+  const [participantCount, setParticipantCount] = React.useState(2);
+
+  React.useEffect(() => {
+    if (!roomCode) {
+      setDuration("00:00:00");
+      return;
+    }
+
+    const startTime = Date.now();
+    const interval = setInterval(() => {
+      const diff = Date.now() - startTime;
+      const hours = Math.floor(diff / 3600000).toString().padStart(2, "0");
+      const minutes = Math.floor((diff % 3600000) / 60000).toString().padStart(2, "0");
+      const seconds = Math.floor((diff % 60000) / 1000).toString().padStart(2, "0");
+      setDuration(`${hours}:${minutes}:${seconds}`);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [roomCode]);
 
   // Close popup when clicked anywhere outside the container
   React.useEffect(() => {
@@ -45,7 +74,7 @@ export default function SidebarTabs({
       <div className="flex flex-col gap-5 items-center w-full">
         <button
           onClick={() => toggleSidebarTab("files")}
-          className={`p-2 rounded-lg transition-all ${
+          className={`p-2 rounded-lg transition-all cursor-pointer ${
             activeSidebarTab === "files" && isSidebarExpanded 
               ? getThemeClass("text-zinc-900 bg-zinc-200", "text-white bg-zinc-900") 
               : "text-zinc-500 hover:text-zinc-400"
@@ -56,7 +85,7 @@ export default function SidebarTabs({
         </button>
         <button
           onClick={() => toggleSidebarTab("settings")}
-          className={`p-2 rounded-lg transition-all ${
+          className={`p-2 rounded-lg transition-all cursor-pointer ${
             activeSidebarTab === "settings" && isSidebarExpanded 
               ? getThemeClass("text-zinc-900 bg-zinc-200", "text-white bg-zinc-900") 
               : "text-zinc-500 hover:text-zinc-400"
@@ -68,11 +97,11 @@ export default function SidebarTabs({
         {showNotesTab && (
           <button
             onClick={() => toggleSidebarTab("notes")}
-            className={`p-2 rounded-lg transition-all ${
+            className={`p-2 rounded-lg transition-all cursor-pointer ${
               activeSidebarTab === "notes" && isSidebarExpanded 
                 ? getThemeClass("text-zinc-900 bg-zinc-200", "text-white bg-zinc-900") 
                 : "text-zinc-500 hover:text-zinc-400"
-            }`}
+          }`}
             title="Interviewer Notes"
           >
             <BookOpen className="h-4 w-4" />
@@ -84,7 +113,7 @@ export default function SidebarTabs({
       <div className="relative" ref={popupContainerRef}>
         <button
           onClick={() => setShowSessionPopup(!showSessionPopup)}
-          className={`p-2 rounded-lg transition-all ${
+          className={`p-2 rounded-lg transition-all cursor-pointer ${
             showSessionPopup ? getThemeClass("text-zinc-900 bg-zinc-200", "text-white bg-zinc-900") : "text-zinc-500 hover:text-zinc-350"
           }`}
           title="Session Actions"
@@ -100,39 +129,48 @@ export default function SidebarTabs({
             
             <div className="space-y-3">
               {/* Join Session */}
-              <button 
-                onClick={() => triggerAlert("Session Integration", "Joining sessions is not wired up yet.")}
-                className={`w-full px-2.5 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-2 transition-colors ${
-                  getThemeClass("bg-zinc-100 hover:bg-zinc-200 border-zinc-300 text-zinc-800", "bg-zinc-950 border-zinc-800 hover:bg-zinc-850 text-zinc-300")
-                }`}
-              >
-                Join Session with Code
-              </button>
+              {!roomCode ? (
+                <button 
+                  onClick={() => {
+                    setShowSessionPopup(false);
+                    onJoinSession();
+                  }}
+                  className={`w-full px-2.5 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-2 transition-colors cursor-pointer ${
+                    getThemeClass("bg-zinc-100 hover:bg-zinc-200 border-zinc-300 text-zinc-800", "bg-zinc-950 border-zinc-800 hover:bg-zinc-850 text-zinc-300")
+                  }`}
+                >
+                  Join Session with Code
+                </button>
+              ) : (
+                /* Leave Session */
+                <button 
+                  onClick={() => {
+                    setShowSessionPopup(false);
+                    onLeaveSession();
+                  }}
+                  className={`w-full px-2.5 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-2 transition-colors cursor-pointer ${
+                    getThemeClass("bg-zinc-100 hover:bg-zinc-200 border-zinc-300 text-rose-600", "bg-zinc-950 border-zinc-800 hover:bg-zinc-850 text-rose-450")
+                  }`}
+                >
+                  Leave Session
+                </button>
+              )}
 
-              {/* Leave Session */}
-              <button 
-                onClick={() => triggerAlert("Session Integration", "Leaving sessions is not wired up yet.")}
-                className={`w-full px-2.5 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-2 transition-colors ${
-                  getThemeClass("bg-zinc-100 hover:bg-zinc-200 border-zinc-300 text-rose-600", "bg-zinc-950 border-zinc-800 hover:bg-zinc-850 text-rose-450")
-                }`}
-              >
-                Leave Session
-              </button>
-
-              <div className={`border-t my-2 ${getThemeClass("border-zinc-200", "border-zinc-800")}`} />
-
-              {/* Session Metrics */}
-              <div className="space-y-1.5">
-                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Metrics</span>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-zinc-500">Duration</span>
-                  <span className="font-mono text-zinc-400">--:--:--</span>
+              {/* Session Metrics - Only displayed after joining/hosting a session */}
+              {roomCode && (
+                <div className="space-y-1.5">
+                  <div className={`border-t my-2 ${getThemeClass("border-zinc-200", "border-zinc-800")}`} />
+                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Metrics</span>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-zinc-500">Duration</span>
+                    <span className="font-mono text-zinc-400">{duration}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-zinc-500">Participants</span>
+                    <span className="text-zinc-400">{participantCount}</span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-zinc-500">Participants</span>
-                  <span className="text-zinc-400">-</span>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         )}

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Editor from "@monaco-editor/react";
-import { Cpu, Info } from "lucide-react";
+import { Cpu, Info, X } from "lucide-react";
 import { runCode, JUDGE_API_BASE_URL, RunCodeResponse, CodeFile } from "../config/api";
 
 import Header from "../../components/home/Header";
@@ -51,8 +51,164 @@ export default function Home() {
   const [isHost, setIsHost] = useState(false);
   const [isHostingModalOpen, setIsHostingModalOpen] = useState(false);
   const [verdictModalOpen, setVerdictModalOpen] = useState(false);
+
+  // Keep refs in sync with state for reliable access inside closures
   const isUpdatingFromRemoteRef = useRef(false);
   const channelRef = useRef<any>(null);
+  const roomCodeRef = useRef<string | null>(null);
+  const userRef = useRef<User | null>(null);
+
+  useEffect(() => { roomCodeRef.current = roomCode; }, [roomCode]);
+  useEffect(() => { userRef.current = user; }, [user]);
+
+  // Right Sidebar Layout States
+  const [showRightSidebar, setShowRightSidebar] = useState(false);
+  const [rightSidebarWidth, setRightSidebarWidth] = useState(300);
+  const [isDraggingRightSidebar, setIsDraggingRightSidebar] = useState(false);
+  
+  const [rightVerticalSplit, setRightVerticalSplit] = useState(0.5); // Default 50% split ratio
+  const [isDraggingVerticalSplit, setIsDraggingVerticalSplit] = useState(false);
+
+  // Chat message state
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [messageInput, setMessageInput] = useState("");
+
+  // Participant list state
+  const [discoveredParticipants, setDiscoveredParticipants] = useState<any[]>([]);
+
+  // Waiting Room States
+  const [isApprovedEntry, setIsApprovedEntry] = useState(false);
+  const [waitingCandidates, setWaitingCandidates] = useState<any[]>([]);
+
+  // Custom Toast/Notification state
+  const [waitingRoomToast, setWaitingRoomToast] = useState<{
+    show: boolean;
+    message: string;
+    type: "info" | "success" | "error";
+  } | null>(null);
+
+  useEffect(() => {
+    if (isHost) {
+      setIsApprovedEntry(true);
+    }
+  }, [isHost]);
+
+  const handleApproveEntry = (candidate: any) => {
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: "broadcast",
+        event: "entry-approved",
+        payload: {
+          candidateId: candidate.id
+        }
+      });
+      // Also register them in participants list locally
+      setDiscoveredParticipants(prev => {
+        if (prev.some(p => p.id === candidate.id)) return prev;
+        return [...prev, candidate];
+      });
+    }
+    setWaitingCandidates(prev => prev.filter(c => c.id !== candidate.id));
+  };
+
+  const handleDeclineEntry = (candidateId: string) => {
+    setWaitingCandidates(prev => prev.filter(c => c.id !== candidateId));
+  };
+
+  const handleKickParticipant = (candidateId: string) => {
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: "broadcast",
+        event: "kick-participant",
+        payload: { candidateId }
+      });
+    }
+    setDiscoveredParticipants(prev => prev.filter(p => p.id !== candidateId));
+  };
+
+  // Dragging Handlers
+  const startDraggingRightSidebar = (e: React.MouseEvent) => {
+    setIsDraggingRightSidebar(true);
+    e.preventDefault();
+  };
+
+  const startDraggingVerticalSplit = (e: React.MouseEvent) => {
+    setIsDraggingVerticalSplit(true);
+    e.preventDefault();
+  };
+
+  // Dragging mousemove handler
+  useEffect(() => {
+    if (!isDraggingRightSidebar && !isDraggingVerticalSplit) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDraggingRightSidebar) {
+        const newWidth = window.innerWidth - e.clientX;
+        if (newWidth > 260 && newWidth < 600) {
+          setRightSidebarWidth(newWidth);
+        }
+      }
+
+      if (isDraggingVerticalSplit) {
+        const sidebarElement = document.getElementById("right-collapsible-sidebar");
+        if (sidebarElement) {
+          const rect = sidebarElement.getBoundingClientRect();
+          const relativeY = e.clientY - rect.top;
+          const ratio = relativeY / rect.height;
+          // Constraint: max vertical split is 80-20 for both windows
+          if (ratio >= 0.2 && ratio <= 0.8) {
+            setRightVerticalSplit(ratio);
+          }
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingRightSidebar(false);
+      setIsDraggingVerticalSplit(false);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDraggingRightSidebar, isDraggingVerticalSplit]);
+
+  // Reset states on session end
+  useEffect(() => {
+    if (!roomCode) {
+      setDiscoveredParticipants([]);
+      setChatMessages([]);
+      setShowRightSidebar(false);
+    }
+  }, [roomCode]);
+
+  const handleSendChatMessage = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!messageInput.trim()) return;
+    
+    const payload = {
+      id: Math.random().toString(36).substr(2, 9),
+      sender: user?.user_metadata?.display_name || user?.email?.split("@")[0] || "User",
+      text: messageInput.trim(),
+      timestamp: Date.now()
+    };
+    
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: "broadcast",
+        event: "chat-message",
+        payload: payload
+      });
+    }
+    
+    setChatMessages(prev => [...prev, payload]);
+    setMessageInput("");
+  };
+
 
   useEffect(() => {
     const refreshSession = async () => {
@@ -585,11 +741,46 @@ export default function Home() {
   };
 
   const handleLeaveSession = () => {
+    // Announce departure so other sessions drop candidate cleanly
+    if (channelRef.current && user) {
+      channelRef.current.send({
+        type: "broadcast",
+        event: "cancel-request",
+        payload: { id: user.id }
+      });
+      channelRef.current.send({
+        type: "broadcast",
+        event: "participant-left",
+        payload: { id: user.id }
+      });
+    }
+
     setRoomCode(null);
     setIsHost(false);
+    setIsApprovedEntry(false); // Reset entry approval state
     updateUrlRoom(null);
     triggerAlert("Left Session", "You have left the collaborative session.", "success");
   };
+
+  // Broadcast exit on page unload/close
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (channelRef.current && user && roomCode) {
+        channelRef.current.send({
+          type: "broadcast",
+          event: "cancel-request",
+          payload: { id: user.id }
+        });
+        channelRef.current.send({
+          type: "broadcast",
+          event: "participant-left",
+          payload: { id: user.id }
+        });
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [roomCode, user]);
 
   const handleEndSession = async () => {
     if (!roomCode) return;
@@ -695,31 +886,33 @@ export default function Home() {
       })
       .on("broadcast", { event: "interview-ended" }, async (payload: any) => {
         const hostName = payload.payload?.hostName || "Interviewer";
+        const verdict = payload.payload?.verdict;
+        // Use refs to get the live values — closures would have stale state
+        const currentUser = userRef.current;
+        const currentRoomCode = roomCodeRef.current;
 
-        if (user) {
+        if (currentUser && currentRoomCode && verdict) {
           try {
             const { data: existing } = await supabase
               .from("interview_history")
               .select("id")
-              .eq("user_id", user.id)
-              .eq("title", `Coding Interview (${roomCode})`)
+              .eq("user_id", currentUser.id)
+              .eq("title", `Coding Interview (${currentRoomCode})`)
               .maybeSingle();
 
             if (existing) {
               await supabase
                 .from("interview_history")
-                .update({
-                  status: payload.payload?.verdict || "Pending"
-                })
+                .update({ status: verdict })
                 .eq("id", existing.id);
             } else {
               await supabase
                 .from("interview_history")
                 .insert({
-                  user_id: user.id,
-                  title: `Coding Interview (${roomCode})`,
+                  user_id: currentUser.id,
+                  title: `Coding Interview (${currentRoomCode})`,
                   interviewer_name: hostName,
-                  status: payload.payload?.verdict || "Pending"
+                  status: verdict
                 });
             }
           } catch (err) {
@@ -732,7 +925,134 @@ export default function Home() {
         updateUrlRoom(null);
         triggerAlert("Interview Ended", "The host has ended the interview session.", "success");
       })
-      .subscribe();
+      .on("broadcast", { event: "chat-message" }, (payload: any) => {
+        setChatMessages(prev => [...prev, payload.payload]);
+      })
+      .on("broadcast", { event: "participant-ping" }, (payload: any) => {
+        if (!isHost && !isApprovedEntry) return;
+        const participant = payload.payload;
+        setDiscoveredParticipants(prev => {
+          if (prev.some(p => p.id === participant.id)) return prev;
+          return [...prev, participant];
+        });
+        
+        // Reply with details so they discover us too
+        const selfParticipant = {
+          id: user?.id || "anonymous",
+          name: user?.user_metadata?.display_name || user?.email?.split("@")[0] || "User",
+          avatar_url: user?.user_metadata?.avatar_url || user?.user_metadata?.picture || null,
+          isHost: isHost
+        };
+        channel.send({
+          type: "broadcast",
+          event: "participant-pong",
+          payload: selfParticipant
+        });
+      })
+      .on("broadcast", { event: "participant-pong" }, (payload: any) => {
+        if (!isHost && !isApprovedEntry) return;
+        const participant = payload.payload;
+        setDiscoveredParticipants(prev => {
+          if (prev.some(p => p.id === participant.id)) return prev;
+          return [...prev, participant];
+        });
+      })
+      .on("broadcast", { event: "request-entry" }, (payload: any) => {
+        const participant = payload.payload;
+        setWaitingCandidates(prev => {
+          if (prev.some(c => c.id === participant.id)) return prev;
+          return [...prev, participant];
+        });
+        setWaitingRoomToast({
+          show: true,
+          message: `Applicant "${participant.name}" has joined the waiting room.`,
+          type: "info"
+        });
+        setTimeout(() => {
+          setWaitingRoomToast(prev => prev ? { ...prev, show: false } : null);
+        }, 5000);
+      })
+      .on("broadcast", { event: "entry-approved" }, (payload: any) => {
+        const { candidateId } = payload.payload;
+        if (candidateId === user?.id) {
+          setIsApprovedEntry(true);
+          setWaitingRoomToast({
+            show: true,
+            message: "The interviewer has allowed you to join the session.",
+            type: "success"
+          });
+          setTimeout(() => {
+            setWaitingRoomToast(prev => prev ? { ...prev, show: false } : null);
+          }, 4000);
+
+          if (channelRef.current && user) {
+            channelRef.current.send({
+              type: "broadcast",
+              event: "participant-ping",
+              payload: {
+                id: user.id,
+                name: user.user_metadata?.display_name || user.email?.split("@")[0] || "User",
+                avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
+                isHost: false
+              }
+            });
+          }
+        }
+      })
+      .on("broadcast", { event: "cancel-request" }, (payload: any) => {
+        const { id } = payload.payload;
+        setWaitingCandidates((prev: { id: any; }[]) => prev.filter(c => c.id !== id));
+      })
+      .on("broadcast", { event: "participant-left" }, (payload: any) => {
+        const { id } = payload.payload;
+        setDiscoveredParticipants(prev => prev.filter(p => p.id !== id));
+      })
+      .on("broadcast", { event: "kick-participant" }, (payload: any) => {
+        const { candidateId } = payload.payload;
+        if (candidateId === user?.id) {
+          // We got kicked!
+          setRoomCode(null);
+          setIsHost(false);
+          setIsApprovedEntry(false);
+          updateUrlRoom(null);
+          triggerAlert("Removed from Session", "You have been removed from the session by the host.", "error");
+        } else {
+          setDiscoveredParticipants(prev => prev.filter(p => p.id !== candidateId));
+        }
+      });
+
+    channel.subscribe((status) => {
+      if (status === "SUBSCRIBED" && user) {
+        const selfParticipant = {
+          id: user.id,
+          name: user.user_metadata?.display_name || user.email?.split("@")[0] || "User",
+          avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
+          isHost: isHost
+        };
+
+        if (isHost) {
+          channel.send({
+            type: "broadcast",
+            event: "participant-ping",
+            payload: selfParticipant
+          });
+        } else {
+          channel.send({
+            type: "broadcast",
+            event: "request-entry",
+            payload: selfParticipant
+          });
+          setWaitingRoomToast({
+            show: true,
+            message: "Request sent. Waiting in the waiting room...",
+            type: "info"
+          });
+          setTimeout(() => {
+            setWaitingRoomToast(prev => prev ? { ...prev, show: false } : null);
+          }, 3000);
+        }
+      }
+    });
 
     return () => {
       supabase.removeChannel(channel);
@@ -793,6 +1113,49 @@ export default function Home() {
   const getThemeClass = (light: string, dark: string) => {
     return theme === "light" ? light : dark;
   };
+
+  if (roomCode && !isHost && !isApprovedEntry) {
+    return (
+      <main className="h-screen w-screen bg-zinc-950 flex flex-col items-center justify-center p-6 select-none font-sans relative overflow-hidden">
+        {/* Brand logo at top center */}
+        <div className="flex items-center gap-2 mb-8 animate-in fade-in slide-in-from-top-4 duration-300">
+          <img src="/logo/logo.png" alt="WeRC Logo" className="h-6 w-6 object-contain rounded" />
+          <span className="text-sm font-semibold tracking-tight text-white font-sans">WeRC</span>
+        </div>
+
+        {/* Flat Minimal Card */}
+        <div className="max-w-sm w-full p-6 rounded-xl border border-zinc-900 bg-zinc-950 flex flex-col items-center gap-5 relative z-10 animate-in fade-in zoom-in-95 duration-300">
+          <div className="h-12 w-12 rounded-full border border-zinc-900 flex items-center justify-center text-zinc-400">
+            <Cpu className="h-5 w-5 animate-spin duration-3000" />
+          </div>
+          <div className="text-center">
+            <h3 className="text-sm font-semibold text-zinc-100 tracking-tight">Waiting for approval</h3>
+            <p className="text-xs text-zinc-500 mt-1.5 leading-relaxed max-w-xs mx-auto">
+              Joined session <span className="font-mono font-bold text-indigo-400">{roomCode}</span>. Please wait for the interviewer to let you in.
+            </p>
+          </div>
+          <div className="h-0.5 w-full bg-zinc-900 overflow-hidden relative rounded-full">
+            <div className="absolute top-0 bottom-0 left-0 bg-indigo-500 rounded-full animate-progress" />
+          </div>
+          <button
+            onClick={handleLeaveSession}
+            className="w-full py-2.5 rounded-lg border border-zinc-900 hover:border-zinc-850 bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-rose-500 text-xs font-semibold cursor-pointer transition-colors active:scale-[0.98]"
+          >
+            Leave Session
+          </button>
+        </div>
+
+        {waitingRoomToast?.show && (
+          <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[200] animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-none select-none">
+            <div className="px-3.5 py-2 rounded-lg border shadow-xl flex items-center gap-2 text-xs font-medium bg-zinc-900 border-zinc-850 text-zinc-300">
+              <span className="w-1 h-1 rounded-full bg-indigo-400 animate-pulse" />
+              <span>{waitingRoomToast.message}</span>
+            </div>
+          </div>
+        )}
+      </main>
+    );
+  }
 
   return (
     <main className={`flex flex-col h-screen w-screen overflow-hidden font-sans antialiased transition-colors duration-250 ${getThemeClass("bg-zinc-50 text-zinc-900", "bg-zinc-950 text-zinc-100")
@@ -886,6 +1249,17 @@ export default function Home() {
         }}
         onLeaveSession={handleLeaveSession}
         onEndSession={handleEndSession}
+        showRightSidebar={showRightSidebar}
+        onToggleRightSidebar={() => setShowRightSidebar(!showRightSidebar)}
+        onShowMeetingDetails={() => setIsHostingModalOpen(true)}
+        activeParticipants={[
+          {
+            id: user?.id || "anonymous",
+            name: user?.user_metadata?.display_name || user?.email?.split("@")[0] || "User",
+            avatar_url: user?.user_metadata?.avatar_url || user?.user_metadata?.picture || null
+          },
+          ...discoveredParticipants.filter(p => !waitingCandidates.some(wc => wc.id === p.id))
+        ]}
       />
 
       {/* Main Workspace Body */}
@@ -899,6 +1273,26 @@ export default function Home() {
           getThemeClass={getThemeClass}
           triggerAlert={triggerAlert}
           showNotesTab={!roomCode || isHost}
+          roomCode={roomCode}
+          onJoinSession={() => {
+            triggerPrompt(
+              "Join Interview",
+              "Enter Session Code (e.g. WERC-XXXX)",
+              "",
+              (code) => {
+                if (code.trim()) {
+                  handleJoinSession(code.trim());
+                }
+              }
+            );
+          }}
+          onLeaveSession={() => {
+            if (isHost) {
+              handleEndSession();
+            } else {
+              handleLeaveSession();
+            }
+          }}
         />
 
         {/* 2b. Collapsible Sidebar Drawer Panel */}
@@ -1007,8 +1401,195 @@ export default function Home() {
             errorMsg={errorMsg}
             getThemeClass={getThemeClass}
           />
-
         </div>
+
+        {/* 5. Right Collaborative Sidebar (Participants & Chat) */}
+        {showRightSidebar && roomCode && (
+          <>
+            {/* Sidebar Width Drag Handle */}
+            <div
+              onMouseDown={startDraggingRightSidebar}
+              className={`hidden md:flex w-[4px] hover:w-[6px] bg-transparent hover:bg-zinc-700 cursor-col-resize h-full transition-all z-30 select-none items-center justify-center border-l border-r ${getThemeClass("border-zinc-200 hover:border-zinc-300", "border-zinc-900 hover:border-zinc-800")
+                } ${isDraggingRightSidebar ? getThemeClass("bg-zinc-300 w-[6px]", "bg-zinc-650 w-[6px]") : ""
+                }`}
+            />
+
+            <aside 
+              id="right-collapsible-sidebar"
+              style={{ width: `${rightSidebarWidth}px` }}
+              className={`h-full flex flex-col shrink-0 border-l ${getThemeClass("bg-zinc-100 border-zinc-200 text-zinc-800", "bg-zinc-950 border-zinc-900 text-zinc-300")}`}
+            >
+              {/* Top Half: Participant List */}
+              <div 
+                style={{ height: `${rightVerticalSplit * 100}%` }}
+                className="flex flex-col min-h-0"
+              >
+                <div className="px-4 py-2 border-b border-zinc-900 flex items-center justify-between shrink-0 select-none">
+                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">// participants ({[
+                    {
+                      id: user?.id || "anonymous",
+                      name: user?.user_metadata?.display_name || user?.email?.split("@")[0] || "User",
+                      avatar_url: user?.user_metadata?.avatar_url || user?.user_metadata?.picture || null,
+                      isHost: isHost
+                    },
+                    ...discoveredParticipants.filter(p => !waitingCandidates.some(wc => wc.id === p.id))
+                  ].length})</span>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-3 space-y-4 select-none">
+                  {/* Section 1: Active Collaborators */}
+                  <div className="space-y-2">
+                    <div className="text-[9px] font-bold text-zinc-550 uppercase tracking-wider">// active</div>
+                    {[
+                      {
+                        id: user?.id || "anonymous",
+                        name: user?.user_metadata?.display_name || user?.email?.split("@")[0] || "User",
+                        avatar_url: user?.user_metadata?.avatar_url || user?.user_metadata?.picture || null,
+                        isHost: isHost,
+                        isSelf: true
+                      },
+                      ...discoveredParticipants.filter(p => !waitingCandidates.some(wc => wc.id === p.id))
+                    ].map((p, idx) => (
+                      <div key={p.id + idx} className="flex items-center gap-2.5 px-2 py-1.5 rounded bg-zinc-900/40 border border-transparent hover:border-zinc-900/60 transition-all">
+                        <div className="h-6 w-6 rounded-full overflow-hidden border border-zinc-800 shrink-0 flex items-center justify-center bg-zinc-950">
+                          {p.avatar_url ? (
+                            <img src={p.avatar_url} alt="Profile" className="h-full w-full object-cover" />
+                          ) : (
+                            <span className="font-bold text-[9px] uppercase text-zinc-500">{p.name?.[0]}</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-zinc-250 truncate flex items-center gap-1.5">
+                            <span>{p.name}</span>
+                            {p.isSelf && <span className="text-[8px] font-mono text-zinc-500">(You)</span>}
+                          </p>
+                        </div>
+                        {p.isHost && (
+                          <span className="text-[8px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase shrink-0">Host</span>
+                        )}
+                        {isHost && !p.isSelf && (
+                          <button
+                            onClick={() => handleKickParticipant(p.id)}
+                            className="p-1 rounded text-zinc-500 hover:text-rose-500 transition-colors bg-transparent border-none cursor-pointer"
+                            title="Kick Participant"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Section 2: Waiting Room Candidates (Only visible to host) */}
+                  {isHost && waitingCandidates.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-zinc-900/60">
+                      <div className="text-[9px] font-bold text-zinc-550 uppercase tracking-wider flex items-center gap-1">
+                        <span className="w-1 h-1 rounded-full bg-indigo-450 animate-pulse" />
+                        <span>// waiting room ({waitingCandidates.length})</span>
+                      </div>
+                      {waitingCandidates.map((p) => (
+                        <div key={p.id} className="flex items-center gap-2.5 px-2 py-1.5 rounded bg-indigo-950/10 border border-indigo-900/20">
+                          <div className="h-6 w-6 rounded-full overflow-hidden border border-zinc-800 shrink-0 flex items-center justify-center bg-zinc-950">
+                            {p.avatar_url ? (
+                              <img src={p.avatar_url} alt="Profile" className="h-full w-full object-cover" />
+                            ) : (
+                              <span className="font-bold text-[9px] uppercase text-zinc-550">{p.name?.[0]}</span>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-zinc-250 truncate">
+                              {p.name}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => handleApproveEntry(p)}
+                              className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] cursor-pointer border-0"
+                              title="Admit"
+                            >
+                              Admit
+                            </button>
+                            <button
+                              onClick={() => handleDeclineEntry(p.id)}
+                              className="px-1.5 py-0.5 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-400 border border-zinc-800 hover:border-zinc-700 text-[9px] cursor-pointer"
+                              title="Decline"
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Vertical Split Horizontal Divider Drag Handle */}
+              <div
+                onMouseDown={startDraggingVerticalSplit}
+                className={`h-[4px] hover:h-[6px] cursor-row-resize w-full transition-all z-20 select-none border-t border-b ${getThemeClass("bg-zinc-200 hover:bg-zinc-300 border-zinc-200", "bg-zinc-900 hover:bg-zinc-700 border-zinc-900")
+                  } ${isDraggingVerticalSplit ? getThemeClass("bg-zinc-300 h-[6px]", "bg-zinc-600 h-[6px]") : ""
+                  }`}
+              />
+
+              {/* Bottom Half: Chat Window */}
+              <div 
+                style={{ height: `${(1 - rightVerticalSplit) * 100}%` }}
+                className="flex flex-col min-h-0 bg-zinc-950/20"
+              >
+                <div className="px-4 py-2 border-b border-zinc-900 flex items-center justify-between shrink-0 select-none">
+                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">// room_chat</span>
+                </div>
+
+                {/* Messages Box */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 font-mono text-[11px]">
+                  {chatMessages.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-zinc-600 select-none">// no messages yet</div>
+                  ) : (
+                    chatMessages.map((msg) => {
+                      const isSelf = msg.sender === (user?.user_metadata?.display_name || user?.email?.split("@")[0]);
+                      return (
+                        <div key={msg.id} className="flex flex-col gap-0.5 max-w-[85%] break-words">
+                          <div className="flex items-baseline gap-1.5 select-none">
+                            <span className={`font-bold ${isSelf ? "text-indigo-400" : "text-zinc-400"}`}>
+                              {msg.sender}
+                            </span>
+                            <span className="text-[8px] text-zinc-600">
+                              {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <p className="text-zinc-300 leading-relaxed font-sans text-xs bg-zinc-900/55 px-2.5 py-1.5 rounded border border-zinc-900/40">
+                            {msg.text}
+                          </p>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Message Input Form */}
+                <form 
+                  onSubmit={handleSendChatMessage}
+                  className="p-3 border-t border-zinc-900 bg-zinc-950/40 flex items-center gap-2 shrink-0"
+                >
+                  <input
+                    type="text"
+                    value={messageInput}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                    placeholder="Type message..."
+                    className="flex-1 bg-zinc-900 border border-zinc-900 hover:border-zinc-850 focus:border-zinc-800 rounded px-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-700 focus:outline-none transition-all"
+                  />
+                  <button
+                    type="submit"
+                    className="px-3 h-7.5 rounded bg-white hover:bg-zinc-200 text-zinc-950 font-bold text-xs cursor-pointer transition-all active:scale-[0.97]"
+                  >
+                    Send
+                  </button>
+                </form>
+              </div>
+            </aside>
+          </>
+        )}
 
       </div>
 
@@ -1089,6 +1670,60 @@ export default function Home() {
           </div>
         </div>
       </BaseModal>
+
+
+
+      {/* 7. Host Admission Floating Popup Tooltip */}
+      {waitingCandidates.length > 0 && isHost && (
+        <div className="fixed bottom-6 right-6 z-[150] w-76 p-4 rounded-xl border shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300 bg-zinc-950 border-zinc-900 text-zinc-300 font-sans">
+          <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-2 select-none">// entry request</span>
+          <div className="flex items-center gap-2.5 mb-3 select-none">
+            <div className="h-8 w-8 rounded-full overflow-hidden border border-zinc-800 shrink-0 flex items-center justify-center bg-zinc-900">
+              {waitingCandidates[0].avatar_url ? (
+                <img src={waitingCandidates[0].avatar_url} alt="Profile" className="h-full w-full object-cover" />
+              ) : (
+                <span className="font-bold text-xs uppercase text-zinc-500">{waitingCandidates[0].name?.[0]}</span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h5 className="text-xs font-semibold text-zinc-250 truncate">{waitingCandidates[0].name}</h5>
+              <p className="text-[10px] text-zinc-500 truncate">wants to join the interview</p>
+            </div>
+          </div>
+          <div className="flex gap-2 text-xs">
+            <button
+              onClick={() => handleApproveEntry(waitingCandidates[0])}
+              className="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer transition-all active:scale-[0.97] border-0"
+            >
+              Let In
+            </button>
+            <button
+              onClick={() => handleDeclineEntry(waitingCandidates[0].id)}
+              className="flex-1 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-850 text-zinc-400 border border-zinc-800 hover:border-zinc-700 font-medium cursor-pointer transition-all active:scale-[0.97]"
+            >
+              Decline
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 8. Waiting Room Tooltip Popups (Bottom Centre) */}
+      {waitingRoomToast?.show && (
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-[200] animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-none select-none">
+          <div className={`px-4 py-2.5 rounded-xl border shadow-2xl flex items-center gap-2 text-xs font-semibold ${
+            waitingRoomToast.type === "success"
+              ? "bg-emerald-950/95 border-emerald-500/30 text-emerald-450"
+              : waitingRoomToast.type === "error"
+              ? "bg-rose-950/95 border-rose-500/30 text-rose-450"
+              : "bg-zinc-900/95 border-zinc-850 text-zinc-300"
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${
+              waitingRoomToast.type === "success" ? "bg-emerald-500" : waitingRoomToast.type === "error" ? "bg-rose-500" : "bg-indigo-400 animate-pulse"
+            }`} />
+            <span>{waitingRoomToast.message}</span>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

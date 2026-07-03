@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../config/supabase";
 import { 
@@ -333,8 +333,29 @@ export default function DashboardPage() {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      // Clean up realtime channel if set up
+    };
   }, [router]);
+
+  // Realtime subscription: auto-update interview_history if host patches a row live
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`interview_history_${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "interview_history", filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          setInterviewHistory(prev =>
+            prev.map(row => row.id === payload.new.id ? { ...row, ...payload.new } : row)
+          );
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
 
   const fetchDashboardData = async (userId: string, activeUser?: any) => {
     try {
@@ -408,7 +429,41 @@ export default function DashboardPage() {
         .order("created_at", { ascending: false });
 
       const finalIntHistory = (!intError && intHistory) ? intHistory : [];
-      setInterviewHistory(finalIntHistory);
+
+      // Reconcile any stale "Pending" rows: check interviews_taken for a matching verdict
+      // This fixes records where the broadcast was missed due to the stale closure bug.
+      const pendingRows = finalIntHistory.filter((r: any) => r.status === "Pending");
+      if (pendingRows.length > 0) {
+        const reconciledHistory = [...finalIntHistory];
+        for (const row of pendingRows) {
+          const codeMatch = row.title?.match(/\((WERC-[A-Z0-9]+)\)/);
+          if (!codeMatch) continue;
+          const sessionTitle = `Coding Interview (${codeMatch[1]})`;
+
+          // Look up host's record in interviews_taken by matching title
+          const { data: takenRow } = await supabase
+            .from("interviews_taken")
+            .select("status")
+            .eq("title", sessionTitle)
+            .neq("status", "Pending")
+            .maybeSingle();
+
+          if (takenRow?.status) {
+            // Self-patch: candidate updates their own row (RLS allows this)
+            await supabase
+              .from("interview_history")
+              .update({ status: takenRow.status })
+              .eq("id", row.id);
+
+            // Update in local array
+            const idx = reconciledHistory.findIndex((r: any) => r.id === row.id);
+            if (idx !== -1) reconciledHistory[idx] = { ...reconciledHistory[idx], status: takenRow.status };
+          }
+        }
+        setInterviewHistory(reconciledHistory);
+      } else {
+        setInterviewHistory(finalIntHistory);
+      }
 
       // 3. Fetch interviews taken
       const { data: intTaken, error: takenError } = await supabase
