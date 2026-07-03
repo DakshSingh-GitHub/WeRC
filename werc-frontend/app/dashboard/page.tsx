@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../config/supabase";
 import { 
-  ArrowLeft, User as UserIcon, Settings, Calendar, Code, Save, Key, LogOut, CheckCircle, AlertCircle, RefreshCw, Sparkles, Trash2
+  ArrowLeft, User as UserIcon, Settings, Calendar, Code, Save, Key, LogOut, CheckCircle, AlertCircle, RefreshCw, Sparkles, Trash2, Camera, Upload, RotateCcw, ChevronDown
 } from "lucide-react";
 import Link from "next/link";
 import { COUNTRY_OPTIONS } from "../lib/utils/country-options";
@@ -16,6 +16,8 @@ interface UserProfile {
   username: string;
   country: string;
   bio: string | null;
+  avatar_url?: string | null;
+  username_changed?: boolean;
 }
 
 interface InterviewHistory {
@@ -46,11 +48,211 @@ interface CodeHistory {
   created_at: string;
 }
 
+const compressImage = (file: File, maxWidth = 300, maxHeight = 300, quality = 0.7): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Canvas context creation failed"));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error("Canvas toBlob conversion failed"));
+          },
+          "image/jpeg",
+          quality
+        );
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"profile" | "account" | "interviews" | "taken" | "code">("profile");
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+
+  // Helper to extract google identity
+  const getGoogleAvatarUrl = () => {
+    if (!user) return null;
+    const googleIdentity = user.identities?.find((id: any) => id.provider === "google");
+    return googleIdentity?.identity_data?.avatar_url || googleIdentity?.identity_data?.picture || null;
+  };
+
+  const isGoogleUser = user?.app_metadata?.provider === "google" || 
+    user?.app_metadata?.providers?.includes("google") || 
+    user?.identities?.some((id: any) => id.provider === "google");
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0 || !user || !profile) return;
+
+    setAvatarUploading(true);
+    setProfileError(null);
+    setProfileSuccess(false);
+
+    try {
+      const file = e.target.files[0];
+      const compressedBlob = await compressImage(file);
+      const filePath = `public/${user.id}/avatar.jpg`;
+
+      // Upload/replace file in the bucket
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, compressedBlob, {
+          contentType: "image/jpeg",
+          upsert: true
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: publicUrlData } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+
+      const publicUrl = publicUrlData.publicUrl;
+
+      // Update Database profiles table
+      if (profile.hasOwnProperty("avatar_url")) {
+        const { error: dbError } = await supabase
+          .from("profiles")
+          .update({ avatar_url: publicUrl })
+          .eq("id", user.id);
+        if (dbError) console.warn("Failed to update database profile avatar_url:", dbError);
+      }
+
+      // Update state
+      setProfile({
+        ...profile,
+        avatar_url: publicUrl
+      });
+
+      // Update User Metadata in Auth
+      await supabase.auth.updateUser({
+        data: { avatar_url: publicUrl }
+      });
+
+      setProfileSuccess(true);
+    } catch (err: any) {
+      setProfileError(err.message || "Failed to upload avatar image.");
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const handleAvatarDelete = async () => {
+    if (!user || !profile) return;
+
+    setAvatarUploading(true);
+    setProfileError(null);
+    setProfileSuccess(false);
+
+    try {
+      const filePath = `public/${user.id}/avatar.jpg`;
+
+      // Attempt to delete from Storage (might fail if file not present, ignore if so)
+      await supabase.storage.from("avatars").remove([filePath]);
+
+      // Update Database profiles table
+      if (profile.hasOwnProperty("avatar_url")) {
+        const { error: dbError } = await supabase
+          .from("profiles")
+          .update({ avatar_url: null })
+          .eq("id", user.id);
+        if (dbError) console.warn("Failed to update database profile avatar_url:", dbError);
+      }
+
+      // Update state to null
+      setProfile({
+        ...profile,
+        avatar_url: null
+      });
+
+      // Update user auth metadata
+      await supabase.auth.updateUser({
+        data: { avatar_url: null }
+      });
+
+      setProfileSuccess(true);
+    } catch (err: any) {
+      setProfileError(err.message || "Failed to delete avatar image.");
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const handleAvatarResetToGoogle = async () => {
+    if (!user || !profile) return;
+
+    const googleAvatar = getGoogleAvatarUrl();
+    if (!googleAvatar) {
+      setProfileError("No default Google profile picture found.");
+      return;
+    }
+
+    setAvatarUploading(true);
+    setProfileError(null);
+    setProfileSuccess(false);
+
+    try {
+      // Update Database profiles table
+      if (profile.hasOwnProperty("avatar_url")) {
+        const { error: dbError } = await supabase
+          .from("profiles")
+          .update({ avatar_url: googleAvatar })
+          .eq("id", user.id);
+        if (dbError) console.warn("Failed to update database profile avatar_url:", dbError);
+      }
+
+      setProfile({
+        ...profile,
+        avatar_url: googleAvatar
+      });
+
+      // Update user auth metadata
+      await supabase.auth.updateUser({
+        data: { avatar_url: googleAvatar }
+      });
+
+      setProfileSuccess(true);
+    } catch (err: any) {
+      setProfileError(err.message || "Failed to reset to Google avatar.");
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
   
   // Real database records
   const [interviewHistory, setInterviewHistory] = useState<InterviewHistory[]>([]);
@@ -60,6 +262,24 @@ export default function DashboardPage() {
   // Deletion modal configuration
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [idToDelete, setIdToDelete] = useState<string | null>(null);
+
+  // Country Dropdown configuration
+  const [showCountryDropdown, setShowCountryDropdown] = useState(false);
+  const countryDropdownRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        showCountryDropdown &&
+        countryDropdownRef.current &&
+        !countryDropdownRef.current.contains(e.target as Node)
+      ) {
+        setShowCountryDropdown(false);
+      }
+    };
+    window.addEventListener("mousedown", handleOutsideClick);
+    return () => window.removeEventListener("mousedown", handleOutsideClick);
+  }, [showCountryDropdown]);
 
   // Loading & status states
   const [pageLoading, setPageLoading] = useState(true);
@@ -98,30 +318,60 @@ export default function DashboardPage() {
           }
         }
         
-        fetchDashboardData(session.user.id);
+        fetchDashboardData(session.user.id, session.user);
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!session) {
         router.push("/accounts");
       } else {
         setUser(session.user);
-        fetchDashboardData(session.user.id);
+        if (event !== "USER_UPDATED") {
+          fetchDashboardData(session.user.id, session.user);
+        }
       }
     });
 
     return () => subscription.unsubscribe();
   }, [router]);
 
-  const fetchDashboardData = async (userId: string) => {
+  const fetchDashboardData = async (userId: string, activeUser?: any) => {
     try {
+      const currentUser = activeUser || user;
       // 1. Fetch profile
-      const { data: pData, error: pError } = await supabase
+      let pData: any = null;
+      let pError = null;
+      
+      const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name, username, country, bio")
+        .select("id, full_name, username, country, bio, avatar_url, username_changed")
         .eq("id", userId)
         .maybeSingle();
+
+      pData = data;
+      pError = error;
+
+      if (pError && pError.message.includes("column")) {
+        // Fall back if column doesn't exist
+        const fallback = await supabase
+          .from("profiles")
+          .select("id, full_name, username, country, bio, avatar_url")
+          .eq("id", userId)
+          .maybeSingle();
+        if (fallback.error && fallback.error.message.includes("column")) {
+          const fallbackDouble = await supabase
+            .from("profiles")
+            .select("id, full_name, username, country, bio")
+            .eq("id", userId)
+            .maybeSingle();
+          pData = fallbackDouble.data;
+          pError = fallbackDouble.error;
+        } else {
+          pData = fallback.data;
+          pError = fallback.error;
+        }
+      }
 
       if (pError) throw pError;
 
@@ -130,11 +380,23 @@ export default function DashboardPage() {
         // Create default profile
         currentProfile = {
           id: userId,
-          full_name: user?.user_metadata?.full_name || "New User",
-          username: user?.user_metadata?.username || user?.email?.split("@")[0] || "user",
-          country: user?.user_metadata?.country || "United States",
-          bio: ""
+          full_name: currentUser?.user_metadata?.full_name || "New User",
+          username: currentUser?.user_metadata?.username?.replace(/\./g, "_") || currentUser?.email?.split("@")[0]?.replace(/\./g, "_") || "user",
+          country: currentUser?.user_metadata?.country || "United States",
+          bio: "",
+          avatar_url: currentUser?.user_metadata?.avatar_url || currentUser?.user_metadata?.picture || null,
+          username_changed: false
         };
+      } else {
+        if (!currentProfile.hasOwnProperty("avatar_url")) {
+          currentProfile.avatar_url = currentUser?.user_metadata?.avatar_url || currentUser?.user_metadata?.picture || null;
+        } else if (!currentProfile.avatar_url) {
+          currentProfile.avatar_url = currentUser?.user_metadata?.avatar_url || currentUser?.user_metadata?.picture || null;
+        }
+        
+        if (!currentProfile.hasOwnProperty("username_changed")) {
+          currentProfile.username_changed = false;
+        }
       }
       setProfile(currentProfile);
 
@@ -193,24 +455,71 @@ export default function DashboardPage() {
     setProfileError(null);
 
     try {
+      // Update user metadata in Auth so the header and other sessions display the new profile image and username
+      const { error: metaError } = await supabase.auth.updateUser({
+        data: {
+          avatar_url: profile.avatar_url,
+          display_name: profile.username
+        }
+      });
+      if (metaError) console.warn("Failed to update auth user metadata:", metaError);
+
       // Update existing profile record (user row always exists after signup)
+      const updatePayload: any = {
+        full_name: profile.full_name,
+        country: profile.country,
+        bio: profile.bio
+      };
+      if (profile.hasOwnProperty("avatar_url")) {
+        updatePayload.avatar_url = profile.avatar_url;
+      }
+
+      const cacheKey = `werc_dashboard_cache_${profile.id}`;
+      const cached = localStorage.getItem(cacheKey);
+      let originalProfile: any = null;
+      if (cached) {
+        try {
+          originalProfile = JSON.parse(cached).profile;
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      // Check if username was updated (only allowed once for Google users)
+      if (isGoogleUser && !originalProfile?.username_changed && profile.username !== originalProfile?.username) {
+        updatePayload.username = profile.username;
+        if (profile.hasOwnProperty("username_changed")) {
+          updatePayload.username_changed = true;
+          setProfile(prev => prev ? { ...prev, username_changed: true } : null);
+        }
+      }
+
       const { error } = await supabase
         .from("profiles")
-        .update({
-          full_name: profile.full_name,
-          country: profile.country,
-          bio: profile.bio
-        })
+        .update(updatePayload)
         .eq("id", profile.id);
 
-      if (error) throw error;
+      if (error) {
+        // If it failed because of missing column, retry without it
+        if (error.message.includes("column") || error.message.includes("username_changed")) {
+          delete updatePayload.avatar_url;
+          delete updatePayload.username_changed;
+          // Retain updatePayload.username so the username is successfully saved!
+          const { error: fallbackError } = await supabase
+            .from("profiles")
+            .update(updatePayload)
+            .eq("id", profile.id);
+          if (fallbackError) throw fallbackError;
+        } else {
+          throw error;
+        }
+      }
       setProfileSuccess(true);
 
       // Update cache
-      const cacheKey = `werc_dashboard_cache_${profile.id}`;
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        const parsed = JSON.parse(cached);
+      const latestCached = localStorage.getItem(cacheKey);
+      if (latestCached) {
+        const parsed = JSON.parse(latestCached);
         parsed.profile = profile;
         localStorage.setItem(cacheKey, JSON.stringify(parsed));
       }
@@ -309,7 +618,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen w-screen bg-zinc-950 text-zinc-300 flex flex-col font-mono text-xs select-none">
+    <div className="h-screen w-full overflow-hidden bg-zinc-950 text-zinc-300 flex flex-col font-mono text-xs select-none text-left">
       
       {/* Top Header Row */}
       <header className="h-14 px-6 border-b border-zinc-900 flex items-center justify-between">
@@ -338,7 +647,7 @@ export default function DashboardPage() {
       <div className="flex flex-1 min-h-0">
         
         {/* Left Options Navigation List */}
-        <aside className="w-60 border-r border-zinc-900 p-6 flex flex-col gap-1.5 bg-zinc-950 shrink-0">
+        <aside className="w-60 border-r border-zinc-900 p-6 flex flex-col gap-1.5 bg-zinc-950 shrink-0 overflow-y-auto">
           <div className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider mb-2">Options</div>
           
           <button
@@ -429,6 +738,81 @@ export default function DashboardPage() {
                     </div>
                   )}
 
+                  {/* Profile Picture Display and Customization */}
+                  <div className="flex flex-col sm:flex-row items-center gap-5 p-4 border border-zinc-900 bg-zinc-900/10 rounded">
+                    <div className="relative h-20 w-20 rounded-full flex items-center justify-center overflow-hidden border border-zinc-800 bg-zinc-950 shrink-0">
+                      {avatarUploading ? (
+                        <div className="absolute inset-0 bg-zinc-950/80 flex items-center justify-center z-10">
+                          <RefreshCw className="h-5 w-5 animate-spin text-zinc-550" />
+                        </div>
+                      ) : null}
+                      {profile.avatar_url ? (
+                        <img 
+                          src={profile.avatar_url} 
+                          alt="Avatar Preview" 
+                          className="h-full w-full object-cover" 
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <span className="font-bold text-2xl uppercase text-zinc-500">
+                          {profile.full_name?.[0] || user?.email?.[0] || "U"}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex-1 flex flex-col gap-2 w-full">
+                      <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Profile Picture Source</label>
+                      
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* File Upload Button */}
+                        <label className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 hover:text-white font-bold transition-all text-xs cursor-pointer select-none disabled:opacity-50">
+                          <Upload className="h-3.5 w-3.5" />
+                          <span>Upload File</span>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            onChange={handleAvatarUpload}
+                            className="hidden" 
+                            disabled={avatarUploading}
+                          />
+                        </label>
+
+                        {/* Reset to Google (only for Google accounts) */}
+                        {isGoogleUser && (
+                          <button
+                            type="button"
+                            onClick={handleAvatarResetToGoogle}
+                            disabled={avatarUploading}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 hover:text-white font-bold transition-all text-xs cursor-pointer select-none disabled:opacity-50"
+                            title="Reset to Google Profile Picture"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            <span>Reset to Google</span>
+                          </button>
+                        )}
+
+                        {/* Delete Picture Button */}
+                        {profile.avatar_url && (
+                          <button
+                            type="button"
+                            onClick={handleAvatarDelete}
+                            disabled={avatarUploading}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-rose-950/20 hover:bg-rose-900/30 border border-rose-900/30 text-rose-450 hover:text-rose-400 font-bold transition-all text-xs cursor-pointer select-none disabled:opacity-50"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span>Remove Picture</span>
+                          </button>
+                        )}
+                      </div>
+                      
+                      <p className="text-[9px] text-zinc-650 leading-relaxed mt-1 font-mono">
+                        {isGoogleUser 
+                          ? "// customizable custom upload, reset to google provider default, or remove entirely" 
+                          : "// images are scaled and compressed before uploading as profile image"
+                        }
+                      </p>
+                    </div>
+                  </div>
+
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Full Name</label>
                     <input
@@ -443,28 +827,62 @@ export default function DashboardPage() {
                   <div className="flex flex-col gap-1.5">
                     <div className="flex items-center justify-between">
                       <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Username</label>
-                      <span className="text-[9px] text-zinc-600 font-mono">// non-editable</span>
+                      <span className="text-[9px] text-zinc-650 font-mono">
+                        {isGoogleUser && !profile.username_changed 
+                          ? "// customizable once for Google users" 
+                          : "// non-editable"
+                        }
+                      </span>
                     </div>
-                    <input
-                      type="text"
-                      readOnly
-                      disabled
-                      value={profile.username}
-                      className="w-full bg-zinc-900/40 border border-zinc-900 rounded px-4 py-2.5 text-zinc-500 cursor-not-allowed select-none focus:outline-none"
-                    />
+                    {isGoogleUser && !profile.username_changed ? (
+                      <input
+                        type="text"
+                        required
+                        value={profile.username}
+                        onChange={(e) => setProfile({ ...profile, username: e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, "") })}
+                        className="w-full bg-zinc-900 border border-zinc-900 hover:border-zinc-850 focus:border-zinc-800 rounded px-4 py-2.5 text-zinc-200 placeholder-zinc-750 focus:outline-none transition-all"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        readOnly
+                        disabled
+                        value={profile.username}
+                        className="w-full bg-zinc-900/40 border border-zinc-900 rounded px-4 py-2.5 text-zinc-500 cursor-not-allowed select-none focus:outline-none"
+                      />
+                    )}
                   </div>
 
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-col gap-1.5 relative" ref={countryDropdownRef}>
                     <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Country Location</label>
-                    <select
-                      value={profile.country}
-                      onChange={(e) => setProfile({ ...profile, country: e.target.value })}
-                      className="w-full bg-zinc-900 border border-zinc-900 hover:border-zinc-850 focus:border-zinc-800 rounded px-4 py-2.5 text-zinc-200 focus:outline-none transition-all cursor-pointer"
+                    <button
+                      type="button"
+                      onClick={() => setShowCountryDropdown(!showCountryDropdown)}
+                      className="w-full bg-zinc-900 border border-zinc-900 hover:border-zinc-800 focus:border-zinc-700 rounded px-4 py-2.5 text-zinc-200 flex items-center justify-between transition-all cursor-pointer text-left focus:outline-none"
                     >
-                      {COUNTRY_OPTIONS.map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
+                      <span>{profile.country || "Select Country"}</span>
+                      <ChevronDown className={`h-3.5 w-3.5 text-zinc-500 transition-transform duration-200 ${showCountryDropdown ? "rotate-180" : ""}`} />
+                    </button>
+
+                    {showCountryDropdown && (
+                      <div className="absolute left-0 right-0 top-full mt-1.5 z-[100] max-h-48 overflow-y-auto rounded bg-zinc-900 border border-zinc-800 shadow-2xl py-1 font-mono text-[11px]">
+                        {COUNTRY_OPTIONS.map((c) => (
+                          <div
+                            key={c}
+                            onClick={() => {
+                              setProfile({ ...profile, country: c });
+                              setShowCountryDropdown(false);
+                            }}
+                            className={`px-4 py-2 hover:bg-zinc-800 hover:text-white transition-colors cursor-pointer flex items-center justify-between ${
+                              profile.country === c ? "bg-zinc-850 text-white font-bold" : "text-zinc-400"
+                            }`}
+                          >
+                            <span>{c}</span>
+                            {profile.country === c && <span className="text-indigo-400">✓</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-col gap-1.5">

@@ -55,18 +55,25 @@ export default function Home() {
   const channelRef = useRef<any>(null);
 
   useEffect(() => {
-    // Check initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    });
+    const refreshSession = async () => {
+      const { data: { user: freshUser } } = await supabase.auth.getUser();
+      if (freshUser) {
+        setUser(freshUser);
+      }
+    };
+
+    refreshSession();
 
     // Listen to changes in auth state
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
 
+    window.addEventListener("focus", refreshSession);
+
     return () => {
       subscription.unsubscribe();
+      window.removeEventListener("focus", refreshSession);
     };
   }, []);
 
