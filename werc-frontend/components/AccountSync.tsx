@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { supabase } from "../app/config/supabase";
+import { createClient } from "@supabase/supabase-js";
 
 export interface SavedAccount {
   id: string;
@@ -15,11 +16,16 @@ export interface SavedAccount {
 
 export default function AccountSync() {
   useEffect(() => {
+    // Clean up the access token hash fragment from the URL bar immediately
+    if (typeof window !== "undefined" && (window.location.hash.includes("access_token=") || window.location.hash.includes("id_token="))) {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+
     const checkAndCreateProfile = async (user: any) => {
       try {
         const { data: existingProfile, error } = await supabase
           .from("profiles")
-          .select("id")
+          .select("id, bio, country, username")
           .eq("id", user.id)
           .maybeSingle();
 
@@ -28,35 +34,107 @@ export default function AccountSync() {
           return;
         }
 
-        if (!existingProfile) {
-          const displayName = user.user_metadata?.display_name || user.user_metadata?.full_name || user.email?.split("@")[0] || "User";
-          const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture || null;
-          
-          const newProfile = {
-            id: user.id,
-            full_name: displayName,
-            username: user.user_metadata?.username?.replace(/\./g, "_") || user.email?.split("@")[0]?.replace(/\./g, "_") || `user_${Math.random().toString(36).substr(2, 5)}`,
-            country: user.user_metadata?.country || "United States",
-            bio: ""
-          };
+        const isNewProfile = !existingProfile;
+        const needsSync = isNewProfile || !existingProfile.bio || !existingProfile.country || existingProfile.country === "United States";
 
-          const insertPayload: any = { ...newProfile };
-          
-          // Try inserting with avatar_url. Fall back if the column doesn't exist.
-          const { error: insertError } = await supabase
-            .from("profiles")
-            .insert({ ...insertPayload, avatar_url: avatarUrl });
+        if (needsSync) {
+          // Initialize Vlyxir Supabase Client to check if a profile exists under this email
+          let vlyxirBio = "";
+          let vlyxirCountry = "United States";
+          let vlyxirUsername = "";
 
-          if (insertError) {
-            if (insertError.message.includes("column")) {
-              const { error: fallbackError } = await supabase
+          const vlyxirUrl = process.env.NEXT_PUBLIC_VLYXIR_SUPABASE_URL;
+          const vlyxirAnonKey = process.env.NEXT_PUBLIC_VLYXIR_SUPABASE_ANON_KEY;
+
+          if (vlyxirUrl && vlyxirAnonKey && user.email) {
+            try {
+              const vlyxirSupabase = createClient(vlyxirUrl, vlyxirAnonKey, { auth: { persistSession: false } });
+              const { data: vlyxirProfile } = await vlyxirSupabase
                 .from("profiles")
-                .insert(insertPayload);
-              if (fallbackError) {
-                console.error("Failed fallback profile insertion:", fallbackError);
+                .select("username, bio, country")
+                .eq("email", user.email.toLowerCase())
+                .maybeSingle();
+
+              if (vlyxirProfile) {
+                vlyxirBio = vlyxirProfile.bio || "";
+                vlyxirCountry = vlyxirProfile.country || "United States";
+                vlyxirUsername = vlyxirProfile.username || "";
               }
-            } else {
-              console.error("Failed to insert profile record:", insertError);
+            } catch (vlyxirErr) {
+              console.warn("Could not fetch vlyxir profile for sync:", vlyxirErr);
+            }
+          }
+
+          if (isNewProfile) {
+            const displayName = user.user_metadata?.display_name || user.user_metadata?.full_name || user.email?.split("@")[0] || "User";
+            const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture || null;
+            
+            let resolvedUsername = vlyxirUsername.trim().toLowerCase().replace(/[^a-z0-9-_]/g, "");
+            if (!resolvedUsername || resolvedUsername.length < 3) {
+              resolvedUsername = user.user_metadata?.username?.replace(/\./g, "_") || user.email?.split("@")[0]?.replace(/\./g, "_") || `user_${Math.random().toString(36).substr(2, 5)}`;
+            }
+
+            // Check if username is already taken on WeRC
+            try {
+              const { data: usernameCheck } = await supabase
+                .from("profiles")
+                .select("username")
+                .eq("username", resolvedUsername)
+                .maybeSingle();
+
+              if (usernameCheck) {
+                resolvedUsername = `${resolvedUsername}_${Math.random().toString(36).substr(2, 4)}`;
+              }
+            } catch (err) {
+              console.warn("Failed to check username uniqueness:", err);
+            }
+
+            const newProfile = {
+              id: user.id,
+              full_name: displayName,
+              username: resolvedUsername,
+              country: vlyxirCountry,
+              bio: vlyxirBio
+            };
+
+            const insertPayload: any = { ...newProfile };
+            
+            // Try inserting with avatar_url. Fall back if the column doesn't exist.
+            const { error: insertError } = await supabase
+              .from("profiles")
+              .insert({ ...insertPayload, avatar_url: avatarUrl });
+
+            if (insertError) {
+              if (insertError.message.includes("column")) {
+                const { error: fallbackError } = await supabase
+                  .from("profiles")
+                  .insert(insertPayload);
+                if (fallbackError) {
+                  console.error("Failed fallback profile insertion:", fallbackError);
+                }
+              } else {
+                console.error("Failed to insert profile record:", insertError);
+              }
+            }
+          } else {
+            // Profile exists, but update bio & country from Vlyxir if they are empty
+            const updates: any = {};
+            if (!existingProfile.bio && vlyxirBio) {
+              updates.bio = vlyxirBio;
+            }
+            if ((!existingProfile.country || existingProfile.country === "United States") && vlyxirCountry && vlyxirCountry !== "United States") {
+              updates.country = vlyxirCountry;
+            }
+
+            if (Object.keys(updates).length > 0) {
+              const { error: updateError } = await supabase
+                .from("profiles")
+                .update(updates)
+                .eq("id", user.id);
+
+              if (updateError) {
+                console.warn("Failed to update profile sync details:", updateError.message);
+              }
             }
           }
         }
@@ -98,7 +176,7 @@ export default function AccountSync() {
         provider: provider
       };
 
-      const existingIndex = savedAccounts.findIndex((acc) => acc.id === user.id);
+      const existingIndex = savedAccounts.findIndex((acc) => acc.email === user.email);
       if (existingIndex > -1) {
         savedAccounts[existingIndex] = updatedAccount;
       } else {
