@@ -429,6 +429,7 @@ export default function DashboardPage() {
         .order("created_at", { ascending: false });
 
       const finalIntHistory = (!intError && intHistory) ? intHistory : [];
+      let resolvedInterviewHistory = finalIntHistory;
 
       // Reconcile any stale "Pending" rows: check interviews_taken for a matching verdict
       // This fixes records where the broadcast was missed due to the stale closure bug.
@@ -460,6 +461,7 @@ export default function DashboardPage() {
             if (idx !== -1) reconciledHistory[idx] = { ...reconciledHistory[idx], status: takenRow.status };
           }
         }
+        resolvedInterviewHistory = reconciledHistory;
         setInterviewHistory(reconciledHistory);
       } else {
         setInterviewHistory(finalIntHistory);
@@ -488,7 +490,7 @@ export default function DashboardPage() {
       // Write to localStorage cache
       const cacheData = {
         profile: currentProfile,
-        interviewHistory: finalIntHistory,
+        interviewHistory: resolvedInterviewHistory,
         interviewsTaken: finalIntTaken,
         codeHistory: finalCodeHist
       };
@@ -640,10 +642,16 @@ export default function DashboardPage() {
       const roomCodeMatch = itemTitle.match(/\((WERC-[A-Z0-9]+)\)/);
       if (roomCodeMatch) {
         const code = roomCodeMatch[1];
-        await supabase
-          .from("interview_history")
-          .update({ status: verdict })
-          .eq("title", `Coding Interview (${code})`);
+        const response = await fetch("/api/verdict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ roomCode: code, verdict }),
+        });
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          throw new Error(payload?.error || "Failed to sync verdict to candidate history.");
+        }
       }
 
       // Update cache
