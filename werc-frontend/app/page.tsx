@@ -32,6 +32,66 @@ export default function LandingPage() {
   
   const [savedAccounts, setSavedAccounts] = useState<any[]>([]);
 
+  const [showOngoingDropdown, setShowOngoingDropdown] = useState(false);
+  const [ongoingSessions, setOngoingSessions] = useState<any[]>([]);
+  const ongoingContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!user) {
+      setOngoingSessions([]);
+      return;
+    }
+
+    const fetchSessions = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("interview_sessions")
+          .select("code, created_at")
+          .eq("host_id", user.id)
+          .eq("status", "active");
+
+        if (!error && data) {
+          setOngoingSessions(data);
+        }
+      } catch (err) {
+        console.warn("Failed to fetch ongoing sessions:", err);
+      }
+    };
+
+    fetchSessions();
+    const interval = setInterval(fetchSessions, 15000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        showOngoingDropdown &&
+        ongoingContainerRef.current &&
+        !ongoingContainerRef.current.contains(e.target as Node)
+      ) {
+        setShowOngoingDropdown(false);
+      }
+    };
+    window.addEventListener("mousedown", handleOutsideClick);
+    return () => window.removeEventListener("mousedown", handleOutsideClick);
+  }, [showOngoingDropdown]);
+
+  const handleEndSessionFromDropdown = async (code: string) => {
+    try {
+      const { error } = await supabase
+        .from("interview_sessions")
+        .update({ status: "expired" })
+        .eq("code", code);
+
+      if (!error) {
+        setOngoingSessions((prev) => prev.filter((s) => s.code !== code));
+      }
+    } catch (err) {
+      console.error("Failed to end session from dropdown:", err);
+    }
+  };
+
   useEffect(() => {
     if (showProfileMenu) {
       const saved = localStorage.getItem("werc_saved_accounts");
@@ -87,11 +147,8 @@ export default function LandingPage() {
       setUser(session?.user ?? null);
     });
 
-    window.addEventListener("focus", refreshSession);
-
     return () => {
       subscription.unsubscribe();
-      window.removeEventListener("focus", refreshSession);
     };
   }, []);
 
@@ -136,6 +193,60 @@ export default function LandingPage() {
           </nav>
 
           <div className="flex items-center gap-3">
+            {user && ongoingSessions.length > 0 && (
+              <div className="relative" ref={ongoingContainerRef}>
+                <button
+                  onClick={() => setShowOngoingDropdown(!showOngoingDropdown)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold tracking-tight transition-all cursor-pointer ${
+                    showOngoingDropdown
+                      ? "bg-indigo-950/40 border-indigo-500/30 text-indigo-400"
+                      : "border-zinc-800 bg-transparent text-zinc-400 hover:bg-zinc-900 hover:text-white"
+                  }`}
+                >
+                  <Activity className="h-3.5 w-3.5 animate-pulse text-indigo-500" />
+                  <span>Ongoing ({ongoingSessions.length})</span>
+                  <ChevronDown className="h-3 w-3 text-zinc-500" />
+                </button>
+
+                {showOngoingDropdown && (
+                  <div className="absolute right-0 mt-2 z-[100] w-64 p-3 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-300 shadow-xl animate-in fade-in slide-in-from-top-2 duration-200">
+                    <h4 className="text-[10px] font-bold text-zinc-550 uppercase tracking-wider mb-2">Hosted Sessions</h4>
+                    <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto">
+                      {ongoingSessions.map((session) => (
+                        <div
+                          key={session.code}
+                          className="flex items-center justify-between p-2 rounded border border-zinc-800 bg-zinc-950"
+                        >
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-xs font-mono font-bold text-indigo-400">{session.code}</span>
+                            <span className="text-[9px] text-zinc-555 truncate mt-0.5">
+                              {new Date(session.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Link
+                              href={`/we-rc?room=${session.code}`}
+                              onClick={() => setShowOngoingDropdown(false)}
+                              className="px-2.5 py-1 rounded bg-indigo-500 text-white text-[10px] font-bold hover:bg-indigo-650 transition-colors"
+                            >
+                              Join
+                            </Link>
+                            <button
+                              onClick={() => handleEndSessionFromDropdown(session.code)}
+                              className="p-1 rounded border border-zinc-800 bg-zinc-900 hover:bg-rose-500/10 text-zinc-500 hover:text-rose-500 transition-colors cursor-pointer"
+                              title="End Session"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {!user ? (
               <Link 
                 href="/accounts" 

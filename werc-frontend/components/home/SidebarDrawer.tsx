@@ -52,6 +52,9 @@ interface SidebarDrawerProps {
   setInterviewerNotes: (notes: string) => void;
   getThemeClass: (light: string, dark: string) => string;
   triggerPrompt: (title: string, placeholder: string, defaultValue: string, onSubmit: (val: string) => void) => void;
+  isHost?: boolean;
+  executionEnabled?: boolean;
+  setExecutionEnabled?: (val: boolean) => void;
 }
 
 export default function SidebarDrawer({
@@ -83,7 +86,10 @@ export default function SidebarDrawer({
   interviewerNotes,
   setInterviewerNotes,
   getThemeClass,
-  triggerPrompt
+  triggerPrompt,
+  isHost = false,
+  executionEnabled = true,
+  setExecutionEnabled
 }: SidebarDrawerProps) {
 
   // Nested File Tree Renderer inside drawer
@@ -360,6 +366,24 @@ export default function SidebarDrawer({
               ))}
             </div>
           </div>
+
+          {/* 4. Host Code Execution Toggle */}
+          {isHost && (
+            <div className="space-y-1.5 pt-2 border-t border-zinc-800">
+              <label className="text-xs font-medium text-zinc-400 flex items-center justify-between">
+                <span>Allow Code Execution</span>
+                <input
+                  type="checkbox"
+                  checked={executionEnabled}
+                  onChange={(e) => setExecutionEnabled?.(e.target.checked)}
+                  className="rounded border-zinc-800 bg-zinc-900 text-indigo-500 focus:ring-0 cursor-pointer h-4 w-4"
+                />
+              </label>
+              <p className="text-[10px] text-zinc-550 leading-normal">
+                Enable or disable candidates' ability to compile and run code in the console.
+              </p>
+            </div>
+          )}
         </div>
       )}
 

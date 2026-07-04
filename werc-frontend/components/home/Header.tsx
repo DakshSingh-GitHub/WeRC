@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { FileCode, Database, RefreshCw, Play, ChevronDown, User, LogOut, Settings, LogIn, Video, Plus, X, MessageSquare, Info } from "lucide-react";
+import { FileCode, Database, RefreshCw, Play, Lock, Unlock, ChevronDown, User, LogOut, Settings, LogIn, Video, Plus, X, MessageSquare, Info, Activity } from "lucide-react";
 
 import Link from "next/link";
 import { supabase } from "../../app/config/supabase";
@@ -27,6 +27,8 @@ interface HeaderProps {
   onToggleRightSidebar?: () => void;
   onShowMeetingDetails?: () => void;
   activeParticipants?: { id: string; name: string; avatar_url: string | null }[];
+  executionEnabled?: boolean;
+  setExecutionEnabled?: (val: boolean) => void;
 }
 
 export default function Header({
@@ -48,12 +50,74 @@ export default function Header({
   showRightSidebar = false,
   onToggleRightSidebar,
   onShowMeetingDetails,
-  activeParticipants = []
+  activeParticipants = [],
+  executionEnabled = true,
+  setExecutionEnabled
 }: HeaderProps) {
   const [showProfileMenu, setShowProfileMenu] = React.useState(false);
   const [joinCodeInput, setJoinCodeInput] = React.useState("");
   const profileContainerRef = React.useRef<HTMLDivElement>(null);
+
+  const [showOngoingDropdown, setShowOngoingDropdown] = React.useState(false);
+  const [ongoingSessions, setOngoingSessions] = React.useState<any[]>([]);
+  const ongoingContainerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!user) {
+      setOngoingSessions([]);
+      return;
+    }
+
+    const fetchSessions = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("interview_sessions")
+          .select("code, created_at")
+          .eq("host_id", user.id)
+          .eq("status", "active");
+
+        if (!error && data) {
+          setOngoingSessions(data);
+        }
+      } catch (err) {
+        console.warn("Failed to fetch ongoing sessions:", err);
+      }
+    };
+
+    fetchSessions();
+    const interval = setInterval(fetchSessions, 15000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  React.useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        showOngoingDropdown &&
+        ongoingContainerRef.current &&
+        !ongoingContainerRef.current.contains(e.target as Node)
+      ) {
+        setShowOngoingDropdown(false);
+      }
+    };
+    window.addEventListener("mousedown", handleOutsideClick);
+    return () => window.removeEventListener("mousedown", handleOutsideClick);
+  }, [showOngoingDropdown]);
   
+  const handleEndSessionFromDropdown = async (code: string) => {
+    try {
+      const { error } = await supabase
+        .from("interview_sessions")
+        .update({ status: "expired" })
+        .eq("code", code);
+
+      if (!error) {
+        setOngoingSessions((prev) => prev.filter((s) => s.code !== code));
+      }
+    } catch (err) {
+      console.error("Failed to end session from dropdown:", err);
+    }
+  };
+
   const [savedAccounts, setSavedAccounts] = React.useState<any[]>([]);
 
   React.useEffect(() => {
@@ -198,6 +262,24 @@ export default function Header({
           <span className="hidden sm:inline">{isRunning ? "Running" : "Run Code"}</span>
         </button>
 
+        {isHost && activeRoomCode && (
+          <button
+            onClick={() => setExecutionEnabled?.(!executionEnabled)}
+            className={`flex items-center justify-center h-8.5 w-8.5 rounded-lg border transition-all cursor-pointer ${
+              executionEnabled
+                ? getThemeClass("bg-indigo-500/10 border-indigo-500/30 text-indigo-500 hover:bg-indigo-500/20", "bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20")
+                : getThemeClass("bg-rose-500/10 border-rose-500/30 text-rose-500 hover:bg-rose-500/20", "bg-rose-500/10 border-rose-500/30 text-rose-500 hover:bg-rose-550/20")
+            }`}
+            title={executionEnabled ? "Disable Candidate Code Running" : "Enable Candidate Code Running"}
+          >
+            {executionEnabled ? (
+              <Unlock className="h-4 w-4 text-emerald-500" />
+            ) : (
+              <Lock className="h-4 w-4 text-rose-500" />
+            )}
+          </button>
+        )}
+
         <div className={`h-4 w-px ${getThemeClass("bg-zinc-200", "bg-zinc-900")}`} />
 
         {/* Profile Dropdown Container / Login Button */}
@@ -216,6 +298,67 @@ export default function Header({
           </Link>
         ) : (
           <div className="flex items-center gap-2.5">
+            {/* Ongoing Sessions Dropdown for Hosts */}
+            {ongoingSessions.length > 0 && (
+              <div className="relative" ref={ongoingContainerRef}>
+                <button
+                  onClick={() => setShowOngoingDropdown(!showOngoingDropdown)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold tracking-tight transition-all cursor-pointer ${
+                    showOngoingDropdown
+                      ? getThemeClass("bg-indigo-100 border-indigo-200 text-indigo-700", "bg-indigo-650/20 border-indigo-500/30 text-indigo-400")
+                      : getThemeClass("bg-zinc-150 hover:bg-zinc-200 border-zinc-200 text-zinc-650", "bg-zinc-900 border-zinc-800 hover:bg-zinc-850 text-zinc-400")
+                  }`}
+                >
+                  <Activity className="h-3.5 w-3.5 animate-pulse text-indigo-500" />
+                  <span>Ongoing ({ongoingSessions.length})</span>
+                  <ChevronDown className="h-3 w-3 text-zinc-550" />
+                </button>
+
+                {showOngoingDropdown && (
+                  <div className={`absolute right-0 mt-2 z-[100] w-64 p-3 rounded-lg border shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 ${
+                    getThemeClass("bg-white border-zinc-200 text-zinc-700", "bg-zinc-900 border-zinc-800 text-zinc-300")
+                  }`}>
+                    <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Hosted Sessions</h4>
+                    <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto">
+                      {ongoingSessions.map((session) => (
+                        <div
+                          key={session.code}
+                          className={`flex items-center justify-between p-2 rounded border ${
+                            getThemeClass("bg-zinc-50 border-zinc-200", "bg-zinc-950 border-zinc-850")
+                          }`}
+                        >
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-xs font-mono font-bold text-indigo-400">{session.code}</span>
+                            <span className="text-[9px] text-zinc-505 truncate mt-0.5">
+                              {new Date(session.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Link
+                              href={`/we-rc?room=${session.code}`}
+                              onClick={() => setShowOngoingDropdown(false)}
+                              className="px-2.5 py-1 rounded bg-indigo-500 text-white text-[10px] font-bold hover:bg-indigo-650 transition-colors"
+                            >
+                              Join
+                            </Link>
+                            <button
+                              onClick={() => handleEndSessionFromDropdown(session.code)}
+                              className={`p-1 rounded border transition-colors cursor-pointer ${
+                                getThemeClass("bg-zinc-100 hover:bg-rose-50 border-zinc-300 text-zinc-400 hover:text-rose-500", "bg-zinc-900 border-zinc-800 hover:bg-rose-500/10 text-zinc-500 hover:text-rose-500")
+                              }`}
+                              title="End Session"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Stacked active collaborative avatars */}
             {activeRoomCode && activeParticipants.length > 0 && (
               <div 

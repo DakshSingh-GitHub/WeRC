@@ -87,13 +87,38 @@ export default function Home() {
     type: "info" | "success" | "error";
   } | null>(null);
 
+  const isHostRef = useRef(isHost);
+  const isApprovedEntryRef = useRef(isApprovedEntry);
+  useEffect(() => { isHostRef.current = isHost; }, [isHost]);
+  useEffect(() => { isApprovedEntryRef.current = isApprovedEntry; }, [isApprovedEntry]);
+
   useEffect(() => {
     if (isHost) {
       setIsApprovedEntry(true);
     }
   }, [isHost]);
 
-  const handleApproveEntry = (candidate: any) => {
+  // Auto-sync candidate_id to database when candidate is discovered in the room
+  useEffect(() => {
+    if (isHost && roomCode && discoveredParticipants.length > 0) {
+      const candidate = discoveredParticipants.find(p => !p.isHost && p.id !== user?.id);
+      if (candidate) {
+        supabase
+          .from("interview_sessions")
+          .update({ candidate_id: candidate.id })
+          .eq("code", roomCode)
+          .then(({ error }) => {
+            if (error) {
+              console.warn("Failed to auto-sync candidate_id to database:", error);
+            } else {
+              console.log("WeRC Sync: Successfully auto-synced candidate_id to DB:", candidate.id);
+            }
+          });
+      }
+    }
+  }, [isHost, roomCode, discoveredParticipants, user?.id]);
+
+  const handleApproveEntry = async (candidate: any) => {
     if (channelRef.current) {
       channelRef.current.send({
         type: "broadcast",
@@ -109,6 +134,18 @@ export default function Home() {
       });
     }
     setWaitingCandidates(prev => prev.filter(c => c.id !== candidate.id));
+
+    // Update candidate_id in database since host has write permissions
+    if (roomCode) {
+      try {
+        await supabase
+          .from("interview_sessions")
+          .update({ candidate_id: candidate.id })
+          .eq("code", roomCode);
+      } catch (err) {
+        console.warn("Failed to set candidate_id in session:", err);
+      }
+    }
   };
 
   const handleDeclineEntry = (candidateId: string) => {
@@ -225,11 +262,8 @@ export default function Home() {
       setUser(session?.user ?? null);
     });
 
-    window.addEventListener("focus", refreshSession);
-
     return () => {
       subscription.unsubscribe();
-      window.removeEventListener("focus", refreshSession);
     };
   }, []);
 
@@ -256,6 +290,8 @@ export default function Home() {
   const [isRunning, setIsRunning] = useState(false);
   const [result, setResult] = useState<RunCodeResponse | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [executionEnabled, setExecutionEnabled] = useState(true);
+  const [rateLimitCooldown, setRateLimitCooldown] = useState(0);
 
   // Layout & Sidebar States
   const [activeSidebarTab, setActiveSidebarTab] = useState<"files" | "settings" | "notes">("files");
@@ -543,7 +579,44 @@ export default function Home() {
     setContextMenu(prev => ({ ...prev, visible: false }));
   };
 
+  const handleToggleExecution = async (val: boolean) => {
+    setExecutionEnabled(val);
+    if (roomCode) {
+      try {
+        await supabase
+          .from("interview_sessions")
+          .update({ execution_enabled: val })
+          .eq("code", roomCode);
+        
+        if (channelRef.current) {
+          channelRef.current.send({
+            type: "broadcast",
+            event: "execution-toggle",
+            payload: { enabled: val }
+          });
+        }
+      } catch (err) {
+        console.warn("Failed to update execution setting:", err);
+      }
+    }
+  };
+
   const handleRun = async () => {
+    if (isHost && !discoveredParticipants.some(p => !p.isHost)) {
+      triggerAlert("Execution Blocked", "An applicant must be present in the workspace to execute code.", "error");
+      return;
+    }
+
+    if (!executionEnabled) {
+      triggerAlert("Execution Disabled", "Code execution has been disabled by the host.", "error");
+      return;
+    }
+
+    if (rateLimitCooldown > 0) {
+      triggerAlert("Rate Limit Cooldown", `Please wait ${rateLimitCooldown}s before running code again.`, "error");
+      return;
+    }
+
     setIsRunning(true);
     setResult(null);
     setErrorMsg(null);
@@ -554,17 +627,26 @@ export default function Home() {
       const payload = {
         files,
         entrypoint,
-        input: inputData
+        input: inputData,
+        roomCode: roomCode || "local-sandbox"
       };
 
-      const url = `${JUDGE_API_BASE_URL}/run`;
-      const response = await fetch(url, {
+      const response = await fetch("/api/run", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
       });
+
+      if (response.status === 429) {
+        const data = await response.json();
+        setErrorMsg(data.error);
+        const retryAfter = parseInt(response.headers.get("Retry-After") || "10");
+        setRateLimitCooldown(retryAfter);
+        setIsRunning(false);
+        return;
+      }
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -629,6 +711,28 @@ export default function Home() {
       return;
     }
 
+    // Check if host already has an active session to reuse it
+    try {
+      const { data: existingSession, error: checkError } = await supabase
+        .from("interview_sessions")
+        .select("code")
+        .eq("host_id", user.id)
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      if (existingSession) {
+        setIsHost(true);
+        setRoomCode(existingSession.code);
+        updateUrlRoom(existingSession.code);
+        setIsHostingModalOpen(true);
+        return;
+      }
+    } catch (err: any) {
+      console.warn("Failed to check for existing active session:", err);
+    }
+
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     let randomCode = "WERC-";
     for (let i = 0; i < 6; i++) {
@@ -684,6 +788,7 @@ export default function Home() {
       if (data.entrypoint) setEntrypoint(data.entrypoint);
       if (data.language) setLanguage(data.language);
       if (data.input_data) setInputData(data.input_data);
+      if (data.execution_enabled !== undefined) setExecutionEnabled(data.execution_enabled);
       setTimeout(() => {
         isUpdatingFromRemoteRef.current = false;
       }, 100);
@@ -697,6 +802,12 @@ export default function Home() {
       // Record interviewee candidature immediately upon joining to prevent loss if they leave early
       if (!userIsHost && user) {
         try {
+          // Set candidate_id in interview_sessions
+          await supabase
+            .from("interview_sessions")
+            .update({ candidate_id: user.id })
+            .eq("code", formattedCode);
+
           const { data: existingHist } = await supabase
             .from("interview_history")
             .select("id")
@@ -780,7 +891,7 @@ export default function Home() {
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [roomCode, user]);
+  }, [roomCode, user?.id]);
 
   const handleEndSession = async () => {
     if (!roomCode) return;
@@ -884,6 +995,9 @@ export default function Home() {
           isUpdatingFromRemoteRef.current = false;
         }, 100);
       })
+      .on("broadcast", { event: "execution-toggle" }, (payload: any) => {
+        setExecutionEnabled(payload.payload.enabled);
+      })
       .on("broadcast", { event: "interview-ended" }, async (payload: any) => {
         const hostName = payload.payload?.hostName || "Interviewer";
         const verdict = payload.payload?.verdict;
@@ -929,7 +1043,11 @@ export default function Home() {
         setChatMessages(prev => [...prev, payload.payload]);
       })
       .on("broadcast", { event: "participant-ping" }, (payload: any) => {
-        if (!isHost && !isApprovedEntry) return;
+        console.log("WeRC Event: Received participant-ping", payload, "isHostRef:", isHostRef.current, "isApprovedEntryRef:", isApprovedEntryRef.current);
+        if (!isHostRef.current && !isApprovedEntryRef.current) {
+          console.log("WeRC Event: Ignored participant-ping (not host and not approved)");
+          return;
+        }
         const participant = payload.payload;
         setDiscoveredParticipants(prev => {
           if (prev.some(p => p.id === participant.id)) return prev;
@@ -941,8 +1059,9 @@ export default function Home() {
           id: user?.id || "anonymous",
           name: user?.user_metadata?.display_name || user?.email?.split("@")[0] || "User",
           avatar_url: user?.user_metadata?.avatar_url || user?.user_metadata?.picture || null,
-          isHost: isHost
+          isHost: isHostRef.current
         };
+        console.log("WeRC Event: Sending participant-pong reply", selfParticipant);
         channel.send({
           type: "broadcast",
           event: "participant-pong",
@@ -950,7 +1069,11 @@ export default function Home() {
         });
       })
       .on("broadcast", { event: "participant-pong" }, (payload: any) => {
-        if (!isHost && !isApprovedEntry) return;
+        console.log("WeRC Event: Received participant-pong", payload, "isHostRef:", isHostRef.current, "isApprovedEntryRef:", isApprovedEntryRef.current);
+        if (!isHostRef.current && !isApprovedEntryRef.current) {
+          console.log("WeRC Event: Ignored participant-pong (not host and not approved)");
+          return;
+        }
         const participant = payload.payload;
         setDiscoveredParticipants(prev => {
           if (prev.some(p => p.id === participant.id)) return prev;
@@ -1022,26 +1145,35 @@ export default function Home() {
       });
 
     channel.subscribe((status) => {
+      console.log("WeRC Event: Channel subscription status change:", status);
       if (status === "SUBSCRIBED" && user) {
         const selfParticipant = {
           id: user.id,
           name: user.user_metadata?.display_name || user.email?.split("@")[0] || "User",
           avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
-          isHost: isHost
+          isHost: isHostRef.current
         };
 
-        if (isHost) {
-          channel.send({
-            type: "broadcast",
-            event: "participant-ping",
-            payload: selfParticipant
-          });
-        } else {
-          channel.send({
-            type: "broadcast",
-            event: "request-entry",
-            payload: selfParticipant
-          });
+        // Use a short warm-up delay to guarantee broadcast delivery
+        setTimeout(() => {
+          if (isHostRef.current) {
+            console.log("WeRC Event: Sending warm-up participant-ping as Host", selfParticipant);
+            channel.send({
+              type: "broadcast",
+              event: "participant-ping",
+              payload: selfParticipant
+            });
+          } else {
+            console.log("WeRC Event: Sending warm-up request-entry as Candidate", selfParticipant);
+            channel.send({
+              type: "broadcast",
+              event: "request-entry",
+              payload: selfParticipant
+            });
+          }
+        }, 500);
+
+        if (!isHostRef.current) {
           setWaitingRoomToast({
             show: true,
             message: "Request sent. Waiting in the waiting room...",
@@ -1054,11 +1186,34 @@ export default function Home() {
       }
     });
 
+    // Periodic ping to keep participants list perfectly in sync (every 6 seconds)
+    const pingInterval = setInterval(() => {
+      if (channel && user) {
+        const selfParticipant = {
+          id: user.id,
+          name: user.user_metadata?.display_name || user.email?.split("@")[0] || "User",
+          avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
+          isHost: isHostRef.current
+        };
+
+        if (isHostRef.current || isApprovedEntryRef.current) {
+          console.log("WeRC Event: Sending periodic participant-ping", selfParticipant);
+          channel.send({
+            type: "broadcast",
+            event: "participant-ping",
+            payload: selfParticipant
+          });
+        }
+      }
+    }, 6000);
+
     return () => {
+      clearInterval(pingInterval);
+      channel.unsubscribe();
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
-  }, [roomCode, user]);
+  }, [roomCode, user?.id]);
 
   // Broadcast local changes to channel and save to DB
   useEffect(() => {
@@ -1086,7 +1241,8 @@ export default function Home() {
             active_file_path: activeFilePath,
             entrypoint,
             language,
-            input_data: inputData
+            input_data: inputData,
+            last_activity_at: new Date().toISOString()
           })
           .eq("code", roomCode);
       } catch (err) {
@@ -1096,6 +1252,97 @@ export default function Home() {
 
     return () => clearTimeout(delayDebounce);
   }, [roomCode, files, activeFilePath, entrypoint, language, inputData]);
+
+  // Rate Limit Cooldown timer effect
+  useEffect(() => {
+    if (rateLimitCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setRateLimitCooldown(prev => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [rateLimitCooldown]);
+
+  // Check room status periodically
+  useEffect(() => {
+    if (!roomCode) return;
+    const checkStatus = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("interview_sessions")
+          .select("status")
+          .eq("code", roomCode)
+          .maybeSingle();
+
+        if (error) return;
+        if (!data || data.status === "expired") {
+          setRoomCode(null);
+          setIsHost(false);
+          setIsApprovedEntry(false);
+          updateUrlRoom(null);
+          triggerAlert("Session Ended", "This session has been closed or expired.", "error");
+        }
+      } catch (err) {
+        console.warn("Status check failed:", err);
+      }
+    };
+
+    const interval = setInterval(checkStatus, 30000); // Check every 30s
+    return () => clearInterval(interval);
+  }, [roomCode]);
+
+  // Local Inactivity Expiration
+  useEffect(() => {
+    if (!roomCode) return;
+    
+    let idleTimeout: NodeJS.Timeout;
+
+    const resetIdleTimer = () => {
+      clearTimeout(idleTimeout);
+      idleTimeout = setTimeout(async () => {
+        try {
+          await supabase
+            .from("interview_sessions")
+            .update({ status: "expired" })
+            .eq("code", roomCode);
+          
+          setRoomCode(null);
+          setIsHost(false);
+          setIsApprovedEntry(false);
+          updateUrlRoom(null);
+          triggerAlert("Session Expired", "This room has been expired due to 15 minutes of inactivity.", "error");
+        } catch (err) {
+          console.warn("Failed to expire session:", err);
+        }
+      }, 15 * 60 * 1000); // 15 minutes
+    };
+
+    resetIdleTimer();
+
+    const activityEvents = ["mousedown", "mousemove", "keydown", "scroll", "touchstart"];
+    const handleActivity = () => resetIdleTimer();
+    activityEvents.forEach(evt => window.addEventListener(evt, handleActivity));
+
+    return () => {
+      clearTimeout(idleTimeout);
+      activityEvents.forEach(evt => window.removeEventListener(evt, handleActivity));
+    };
+  }, [roomCode]);
+
+  // Host Auto-Sync candidate_id of joined applicant (bypass RLS restriction)
+  useEffect(() => {
+    if (isHost && roomCode && discoveredParticipants.length > 0) {
+      const applicant = discoveredParticipants.find(p => !p.isHost);
+      if (applicant) {
+        supabase
+          .from("interview_sessions")
+          .update({ candidate_id: applicant.id })
+          .eq("code", roomCode)
+          .then(({ error }) => {
+            if (error) console.warn("Failed to auto-sync candidate_id:", error);
+          });
+      }
+    }
+  }, [isHost, roomCode, discoveredParticipants]);
 
   const toggleSidebarTab = (tab: "files" | "settings" | "notes") => {
     if (activeSidebarTab === tab && isSidebarExpanded) {
@@ -1235,6 +1482,8 @@ export default function Home() {
         activeRoomCode={roomCode}
         isHost={isHost}
         onHostSession={handleHostSession}
+        executionEnabled={executionEnabled}
+        setExecutionEnabled={handleToggleExecution}
         onJoinSession={() => {
           triggerPrompt(
             "Join Interview",
@@ -1331,6 +1580,9 @@ export default function Home() {
               setInterviewerNotes={setInterviewerNotes}
               getThemeClass={getThemeClass}
               triggerPrompt={triggerPrompt}
+              isHost={isHost}
+              executionEnabled={executionEnabled}
+              setExecutionEnabled={handleToggleExecution}
             />
 
             {/* Sidebar Width Resize Slider Handle */}
