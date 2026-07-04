@@ -6,6 +6,8 @@ import { FileCode, Database, RefreshCw, Play, Lock, Unlock, ChevronDown, User, L
 import Link from "next/link";
 import { supabase } from "../../app/config/supabase";
 import { User as SupabaseUser } from "@supabase/supabase-js";
+import { switchSavedAccount, type SavedAccountSession } from "../../app/lib/auth/switch-account";
+import { setSessionCookie } from "../../app/lib/auth/session-cookie";
 
 interface HeaderProps {
   language: string;
@@ -118,7 +120,7 @@ export default function Header({
     }
   };
 
-  const [savedAccounts, setSavedAccounts] = React.useState<any[]>([]);
+  const [savedAccounts, setSavedAccounts] = React.useState<SavedAccountSession[]>([]);
 
   React.useEffect(() => {
     if (showProfileMenu) {
@@ -133,17 +135,33 @@ export default function Header({
     }
   }, [showProfileMenu]);
 
-  const handleSwitchAccount = async (account: any) => {
+  const handleSwitchAccount = async (account: SavedAccountSession) => {
     try {
       setShowProfileMenu(false);
-      const { error } = await supabase.auth.setSession({
-        access_token: account.access_token,
-        refresh_token: account.refresh_token
-      });
-      if (error) throw error;
+      const result = await switchSavedAccount(supabase, account);
+
+      if (!result.ok) {
+        // Remove stale saved sessions without logging the active browser session out.
+        if (result.reason === "stale_session") {
+          console.warn("Stale tokens for account, removing from saved list:", account.email);
+          const updated = savedAccounts.filter((acc) => acc.id !== account.id);
+          setSavedAccounts(updated);
+          localStorage.setItem("werc_saved_accounts", JSON.stringify(updated));
+          triggerAlert("Saved Session Expired", "That saved account session has expired. Please add it again from the accounts page.");
+          return;
+        }
+
+        triggerAlert("Account Switch Failed", "We couldn't switch to that saved account. Your current session is still active.");
+        return;
+      }
+
+      if (result.session) {
+        setSessionCookie(result.session);
+      }
       window.location.reload();
     } catch (err) {
       console.error("Failed to switch account:", err);
+      triggerAlert("Account Switch Failed", "We couldn't switch to that saved account. Your current session is still active.");
     }
   };
 
@@ -156,7 +174,7 @@ export default function Header({
 
   const handleAddNewAccount = async () => {
     setShowProfileMenu(false);
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: "local" });
     window.location.href = "/accounts";
   };
 
@@ -621,7 +639,7 @@ export default function Header({
                       <button
                         onClick={async () => {
                           setShowProfileMenu(false);
-                          await supabase.auth.signOut();
+                          await supabase.auth.signOut({ scope: "local" });
                         }}
                         className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 text-rose-500 transition-colors ${
                           getThemeClass("hover:bg-zinc-100", "hover:bg-zinc-800")

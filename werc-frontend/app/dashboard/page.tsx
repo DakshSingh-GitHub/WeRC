@@ -617,7 +617,7 @@ export default function DashboardPage() {
     if (user) {
       localStorage.removeItem(`werc_dashboard_cache_${user.id}`);
     }
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: "local" });
     router.push("/accounts");
   };
 

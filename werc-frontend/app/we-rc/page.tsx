@@ -799,35 +799,30 @@ export default function Home() {
         setActiveSidebarTab("files");
       }
 
-      // Record interviewee candidature immediately upon joining to prevent loss if they leave early
+      // Ensure exactly ONE history record exists for this candidate+room (upsert pattern)
       if (!userIsHost && user) {
         try {
-          // Set candidate_id in interview_sessions
-          await supabase
-            .from("interview_sessions")
-            .update({ candidate_id: user.id })
-            .eq("code", formattedCode);
+          let hostName = "Interviewer";
+          if (data.host_id) {
+            const { data: hostProfile } = await supabase
+              .from("profiles")
+              .select("full_name, username")
+              .eq("id", data.host_id)
+              .maybeSingle();
+            if (hostProfile) {
+              hostName = hostProfile.full_name || hostProfile.username || "Interviewer";
+            }
+          }
 
           const { data: existingHist } = await supabase
             .from("interview_history")
-            .select("id")
+            .select("id, status")
             .eq("user_id", user.id)
             .eq("title", `Coding Interview (${formattedCode})`)
             .maybeSingle();
 
           if (!existingHist) {
-            let hostName = "Interviewer";
-            if (data.host_id) {
-              const { data: hostProfile } = await supabase
-                .from("profiles")
-                .select("full_name, username")
-                .eq("id", data.host_id)
-                .maybeSingle();
-              if (hostProfile) {
-                hostName = hostProfile.full_name || hostProfile.username || "Interviewer";
-              }
-            }
-
+            // Only insert if no record exists
             await supabase
               .from("interview_history")
               .insert({
@@ -837,8 +832,9 @@ export default function Home() {
                 status: "Pending"
               });
           }
+          // If a record already exists (re-join), keep it as-is to preserve any verdict already set
         } catch (dbErr) {
-          console.warn("Failed to pre-insert candidate history record on join:", dbErr);
+          console.warn("Failed to upsert candidate history record on join:", dbErr);
         }
       }
 
@@ -929,14 +925,17 @@ export default function Home() {
         console.warn("Failed to insert interviews_taken record:", err);
       }
 
-      // Also update the applicant's history record directly from the host client in case the applicant has left early
+      // Update the applicant's history record via the server-side verdict endpoint.
+      // This uses the service role key to bypass RLS (client can't update another user's row).
+      // It also de-duplicates any extra history rows for this room.
       try {
-        await supabase
-          .from("interview_history")
-          .update({ status: verdict })
-          .eq("title", `Coding Interview (${roomCode})`);
+        await fetch("/api/verdict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ roomCode, verdict }),
+        });
       } catch (err) {
-        console.warn("Failed to update candidate's interview_history status from host:", err);
+        console.warn("Failed to call /api/verdict endpoint:", err);
       }
     }
 
@@ -1007,30 +1006,14 @@ export default function Home() {
 
         if (currentUser && currentRoomCode && verdict) {
           try {
-            const { data: existing } = await supabase
+            // Update the existing record — do NOT insert another one to avoid duplicates
+            await supabase
               .from("interview_history")
-              .select("id")
+              .update({ status: verdict })
               .eq("user_id", currentUser.id)
-              .eq("title", `Coding Interview (${currentRoomCode})`)
-              .maybeSingle();
-
-            if (existing) {
-              await supabase
-                .from("interview_history")
-                .update({ status: verdict })
-                .eq("id", existing.id);
-            } else {
-              await supabase
-                .from("interview_history")
-                .insert({
-                  user_id: currentUser.id,
-                  title: `Coding Interview (${currentRoomCode})`,
-                  interviewer_name: hostName,
-                  status: verdict
-                });
-            }
+              .eq("title", `Coding Interview (${currentRoomCode})`);
           } catch (err) {
-            console.warn("Failed to save or update interview_history record:", err);
+            console.warn("Failed to update interview_history record:", err);
           }
         }
 

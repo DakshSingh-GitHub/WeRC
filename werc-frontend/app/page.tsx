@@ -24,13 +24,15 @@ import {
 } from "lucide-react";
 import { supabase } from "./config/supabase";
 import { User } from "@supabase/supabase-js";
+import { switchSavedAccount, type SavedAccountSession } from "./lib/auth/switch-account";
+import { setSessionCookie } from "./lib/auth/session-cookie";
 
 export default function LandingPage() {
   const [user, setUser] = useState<User | null>(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileContainerRef = useRef<HTMLDivElement>(null);
   
-  const [savedAccounts, setSavedAccounts] = useState<any[]>([]);
+  const [savedAccounts, setSavedAccounts] = useState<SavedAccountSession[]>([]);
 
   const [showOngoingDropdown, setShowOngoingDropdown] = useState(false);
   const [ongoingSessions, setOngoingSessions] = useState<any[]>([]);
@@ -105,14 +107,25 @@ export default function LandingPage() {
     }
   }, [showProfileMenu]);
 
-  const handleSwitchAccount = async (account: any) => {
+  const handleSwitchAccount = async (account: SavedAccountSession) => {
     try {
       setShowProfileMenu(false);
-      const { error } = await supabase.auth.setSession({
-        access_token: account.access_token,
-        refresh_token: account.refresh_token
-      });
-      if (error) throw error;
+      const result = await switchSavedAccount(supabase, account);
+
+      if (!result.ok) {
+        // Remove stale saved sessions without disturbing the current signed-in account.
+        if (result.reason === "stale_session") {
+          console.warn("Stale tokens for account, removing from saved list:", account.email);
+          const updated = savedAccounts.filter((acc) => acc.id !== account.id);
+          setSavedAccounts(updated);
+          localStorage.setItem("werc_saved_accounts", JSON.stringify(updated));
+        }
+        return;
+      }
+
+      if (result.session) {
+        setSessionCookie(result.session);
+      }
       window.location.reload();
     } catch (err) {
       console.error("Failed to switch account:", err);
@@ -128,7 +141,7 @@ export default function LandingPage() {
 
   const handleAddNewAccount = async () => {
     setShowProfileMenu(false);
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: "local" });
     window.location.href = "/accounts";
   };
 
@@ -397,7 +410,7 @@ export default function LandingPage() {
                       <button
                         onClick={async () => {
                           setShowProfileMenu(false);
-                          await supabase.auth.signOut();
+                          await supabase.auth.signOut({ scope: "local" });
                         }}
                         className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-rose-500 hover:bg-zinc-800 transition-colors cursor-pointer"
                       >
