@@ -20,14 +20,18 @@ import {
   LogOut,
   ChevronDown,
   Plus,
-  X
+  X,
+  Sun,
+  Moon
 } from "lucide-react";
 import { supabase } from "./config/supabase";
 import { User } from "@supabase/supabase-js";
 import { switchSavedAccount, type SavedAccountSession } from "./lib/auth/switch-account";
 import { setSessionCookie } from "./lib/auth/session-cookie";
+import { useTheme } from "./context/ThemeContext";
 
 export default function LandingPage() {
+  const { theme, toggleTheme } = useTheme();
   const [user, setUser] = useState<User | null>(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileContainerRef = useRef<HTMLDivElement>(null);
@@ -35,6 +39,10 @@ export default function LandingPage() {
   const [savedAccounts, setSavedAccounts] = useState<SavedAccountSession[]>([]);
 
   const [showOngoingDropdown, setShowOngoingDropdown] = useState(false);
+  
+  const getThemeClass = (light: string, dark: string) => {
+    return theme === "light" ? light : dark;
+  };
   const [ongoingSessions, setOngoingSessions] = useState<any[]>([]);
   const ongoingContainerRef = useRef<HTMLDivElement>(null);
 
@@ -181,10 +189,10 @@ export default function LandingPage() {
   }, [showProfileMenu]);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-zinc-350 font-sans selection:bg-zinc-800 selection:text-white overflow-x-hidden antialiased">
+    <div className={`min-h-screen transition-colors duration-250 ${getThemeClass("bg-zinc-50 text-zinc-650", "bg-[#0a0a0a] text-zinc-350")} font-sans selection:bg-zinc-800 selection:text-white overflow-x-hidden antialiased`}>
       
       {/* Navigation Header - Matches we-rc header styling */}
-      <header className="sticky top-0 z-50 w-full border-b border-zinc-900 bg-[#0a0a0a]/90 backdrop-blur-sm">
+      <header className={`sticky top-0 z-50 w-full border-b transition-colors duration-250 ${getThemeClass("border-zinc-200 bg-white/90", "border-zinc-900 bg-[#0a0a0a]/90")} backdrop-blur-sm`}>
         <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Logo image from public/logo/logo.png */}
@@ -193,15 +201,15 @@ export default function LandingPage() {
               alt="WeRC Logo" 
               className="h-6 w-6 object-contain rounded"
             />
-            <span className="text-sm font-semibold tracking-tight text-white">WeRC</span>
+            <span className={`text-sm font-semibold tracking-tight ${getThemeClass("text-zinc-900", "text-white")}`}>WeRC</span>
           </div>
 
-          <nav className="hidden md:flex items-center gap-8 text-xs font-medium text-zinc-400">
-            <a href="#features" className="hover:text-zinc-100 transition-colors">Features</a>
-            <a href="#how-it-works" className="hover:text-zinc-100 transition-colors">Workflow</a>
-            <Link href={user ? "/we-rc" : "/accounts"} className="hover:text-zinc-100 transition-colors">Sandbox</Link>
+          <nav className={`hidden md:flex items-center gap-8 text-xs font-medium ${getThemeClass("text-zinc-600", "text-zinc-400")}`}>
+            <a href="#features" className={`transition-colors ${getThemeClass("hover:text-zinc-900", "hover:text-zinc-100")}`}>Features</a>
+            <a href="#how-it-works" className={`transition-colors ${getThemeClass("hover:text-zinc-900", "hover:text-zinc-100")}`}>Workflow</a>
+            <Link href={user ? "/we-rc" : "/accounts"} className={`transition-colors ${getThemeClass("hover:text-zinc-900", "hover:text-zinc-100")}`}>Sandbox</Link>
             {user && (
-              <Link href="/dashboard" className="hover:text-zinc-100 transition-colors">Dashboard</Link>
+              <Link href="/dashboard" className={`transition-colors ${getThemeClass("hover:text-zinc-900", "hover:text-zinc-100")}`}>Dashboard</Link>
             )}
           </nav>
 
@@ -212,27 +220,31 @@ export default function LandingPage() {
                   onClick={() => setShowOngoingDropdown(!showOngoingDropdown)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold tracking-tight transition-all cursor-pointer ${
                     showOngoingDropdown
-                      ? "bg-indigo-950/40 border-indigo-500/30 text-indigo-400"
-                      : "border-zinc-800 bg-transparent text-zinc-400 hover:bg-zinc-900 hover:text-white"
+                      ? getThemeClass("bg-indigo-50 border-indigo-200 text-indigo-700", "bg-indigo-950/40 border-indigo-500/30 text-indigo-400")
+                      : getThemeClass("border-zinc-200 bg-transparent text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900", "border-zinc-800 bg-transparent text-zinc-400 hover:bg-zinc-900 hover:text-white")
                   }`}
                 >
                   <Activity className="h-3.5 w-3.5 animate-pulse text-indigo-500" />
                   <span>Ongoing ({ongoingSessions.length})</span>
-                  <ChevronDown className="h-3 w-3 text-zinc-500" />
+                  <ChevronDown className="h-3 w-3 text-zinc-550" />
                 </button>
 
                 {showOngoingDropdown && (
-                  <div className="absolute right-0 mt-2 z-[100] w-64 p-3 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-300 shadow-xl animate-in fade-in slide-in-from-top-2 duration-200">
-                    <h4 className="text-[10px] font-bold text-zinc-550 uppercase tracking-wider mb-2">Hosted Sessions</h4>
+                  <div className={`absolute right-0 mt-2 z-[100] w-64 p-3 rounded-lg border shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 ${
+                    getThemeClass("bg-white border-zinc-200 text-zinc-700", "bg-zinc-900 border-zinc-800 text-zinc-300")
+                  }`}>
+                    <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Hosted Sessions</h4>
                     <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto">
                       {ongoingSessions.map((session) => (
                         <div
                           key={session.code}
-                          className="flex items-center justify-between p-2 rounded border border-zinc-800 bg-zinc-950"
+                          className={`flex items-center justify-between p-2 rounded border ${
+                            getThemeClass("bg-zinc-50 border-zinc-200", "bg-zinc-950 border-zinc-800")
+                          }`}
                         >
                           <div className="flex flex-col min-w-0">
                             <span className="text-xs font-mono font-bold text-indigo-400">{session.code}</span>
-                            <span className="text-[9px] text-zinc-555 truncate mt-0.5">
+                            <span className="text-[9px] text-zinc-500 truncate mt-0.5">
                               {new Date(session.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
@@ -246,7 +258,9 @@ export default function LandingPage() {
                             </Link>
                             <button
                               onClick={() => handleEndSessionFromDropdown(session.code)}
-                              className="p-1 rounded border border-zinc-800 bg-zinc-900 hover:bg-rose-500/10 text-zinc-500 hover:text-rose-500 transition-colors cursor-pointer"
+                              className={`p-1 rounded border transition-colors cursor-pointer ${
+                                getThemeClass("bg-zinc-150 border-zinc-300 text-zinc-400 hover:text-rose-500 hover:bg-rose-50", "bg-zinc-900 border-zinc-800 hover:bg-rose-500/10 text-zinc-500 hover:text-rose-500")
+                              }`}
                               title="End Session"
                             >
                               <X className="h-3.5 w-3.5" />
@@ -263,7 +277,9 @@ export default function LandingPage() {
             {!user ? (
               <Link 
                 href="/accounts" 
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 bg-transparent text-xs font-semibold text-zinc-300 hover:bg-zinc-900 hover:text-white transition-all"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                  getThemeClass("bg-zinc-200 border-zinc-300 text-zinc-700 hover:bg-zinc-300 hover:text-zinc-950", "bg-transparent border-zinc-800 text-zinc-300 hover:bg-zinc-900 hover:text-white")
+                }`}
               >
                 <LogIn className="h-3.5 w-3.5" />
                 <span>Login/Signup</span>
@@ -274,12 +290,14 @@ export default function LandingPage() {
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
                   className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all border cursor-pointer ${
                     showProfileMenu 
-                      ? "bg-zinc-900 border-zinc-800 text-white" 
-                      : "bg-transparent border-transparent text-zinc-400 hover:bg-zinc-900"
+                      ? getThemeClass("bg-zinc-200 border-zinc-300 text-zinc-900", "bg-zinc-900 border-zinc-800 text-white") 
+                      : getThemeClass("bg-transparent border-transparent text-zinc-500 hover:bg-zinc-100", "bg-transparent border-transparent text-zinc-400 hover:bg-zinc-900")
                   }`}
                   title="Profile Management"
                 >
-                  <div className="h-5 w-5 rounded-full flex items-center justify-center overflow-hidden border border-indigo-900 bg-indigo-950 text-white font-bold text-[10px] uppercase">
+                  <div className={`h-5 w-5 rounded-full flex items-center justify-center overflow-hidden border font-bold text-[10px] uppercase ${
+                    getThemeClass("bg-zinc-200 border-zinc-300 text-zinc-800", "bg-indigo-950 border-indigo-900 text-white")
+                  }`}>
                     {user.user_metadata?.avatar_url || user.user_metadata?.picture ? (
                       <img
                         src={user.user_metadata.avatar_url || user.user_metadata.picture}
@@ -301,22 +319,28 @@ export default function LandingPage() {
 
                 {/* Profile Menu Popover */}
                 {showProfileMenu && (
-                  <div className="absolute right-0 mt-2 z-[100] w-48 py-1.5 rounded bg-zinc-900 border border-zinc-800 shadow-xl font-mono text-[11px]">
-                    <div className="px-3 py-2 border-b border-zinc-800 select-none flex items-center gap-2">
+                  <div className={`absolute right-0 mt-2 z-[100] w-48 py-1.5 rounded border shadow-xl font-mono text-[11px] ${
+                    getThemeClass("bg-white border-zinc-200 text-zinc-700", "bg-zinc-900 border-zinc-800 text-zinc-300")
+                  }`}>
+                    <div className={`px-3 py-2 border-b select-none flex items-center gap-2 ${
+                      getThemeClass("border-zinc-200", "border-zinc-800")
+                    }`}>
                       {user.user_metadata?.avatar_url || user.user_metadata?.picture ? (
                         <img
                           src={user.user_metadata.avatar_url || user.user_metadata.picture}
                           alt="Profile"
-                          className="h-7 w-7 rounded-full object-cover border border-zinc-850"
+                          className="h-7 w-7 rounded-full object-cover border border-zinc-800"
                           referrerPolicy="no-referrer"
                         />
                       ) : (
-                        <div className="h-7 w-7 rounded-full bg-indigo-950 border border-indigo-900 flex items-center justify-center font-bold text-[9px] uppercase text-white">
+                        <div className={`h-7 w-7 rounded-full flex items-center justify-center font-bold text-[9px] uppercase border ${
+                          getThemeClass("bg-zinc-200 border-zinc-300 text-zinc-800", "bg-indigo-950 border-indigo-900 text-white")
+                        }`}>
                           {user.user_metadata?.display_name?.[0] || user.email?.[0] || "U"}
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold uppercase text-white truncate">
+                        <p className={`font-bold uppercase truncate ${getThemeClass("text-zinc-900", "text-white")}`}>
                           {user.user_metadata?.display_name || user.email?.split("@")[0] || "User"}
                         </p>
                         <p className="text-[9px] text-zinc-500 truncate mt-0.5">{user.email}</p>
@@ -327,7 +351,9 @@ export default function LandingPage() {
                       <Link
                         href="/dashboard"
                         onClick={() => setShowProfileMenu(false)}
-                        className="w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-zinc-800 text-zinc-300 transition-colors"
+                        className={`w-full px-3 py-1.5 text-left flex items-center gap-2 transition-colors ${
+                          getThemeClass("hover:bg-zinc-100 text-zinc-700", "hover:bg-zinc-800 text-zinc-300")
+                        }`}
                       >
                         <UserIcon className="h-3.5 w-3.5" />
                         My Profile
@@ -336,13 +362,36 @@ export default function LandingPage() {
                       <Link
                         href="/dashboard"
                         onClick={() => setShowProfileMenu(false)}
-                        className="w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-zinc-800 text-zinc-300 transition-colors"
+                        className={`w-full px-3 py-1.5 text-left flex items-center gap-2 transition-colors ${
+                          getThemeClass("hover:bg-zinc-100 text-zinc-700", "hover:bg-zinc-800 text-zinc-300")
+                        }`}
                       >
                         <Settings className="h-3.5 w-3.5" />
                         Account Settings
                       </Link>
 
-                      <div className="my-1 border-t border-zinc-800" />
+                      <button
+                        onClick={() => {
+                          toggleTheme();
+                        }}
+                        className={`w-full px-3 py-1.5 text-left flex items-center gap-2 transition-colors cursor-pointer ${
+                          getThemeClass("hover:bg-zinc-100 text-zinc-700", "hover:bg-zinc-800 text-zinc-300")
+                        }`}
+                      >
+                        {theme === "light" ? (
+                          <>
+                            <Moon className="h-3.5 w-3.5 text-indigo-500" />
+                            <span>Dark Mode</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sun className="h-3.5 w-3.5 text-amber-500" />
+                            <span>Light Mode</span>
+                          </>
+                        )}
+                      </button>
+
+                      <div className={`my-1 border-t ${getThemeClass("border-zinc-200", "border-zinc-800")}`} />
 
                       {/* Switch Accounts Section */}
                       <div className="px-3 py-1.5 flex flex-col gap-1.5 select-none font-mono">
@@ -350,7 +399,9 @@ export default function LandingPage() {
                           <span>Switch Accounts</span>
                           <button
                             onClick={handleAddNewAccount}
-                            className="p-0.5 rounded transition-colors cursor-pointer hover:bg-zinc-800 text-zinc-400 hover:text-white"
+                            className={`p-0.5 rounded transition-colors cursor-pointer ${
+                              getThemeClass("text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900", "text-zinc-400 hover:bg-zinc-800 hover:text-white")
+                            }`}
                             type="button"
                             title="Add account"
                           >
@@ -368,7 +419,9 @@ export default function LandingPage() {
                                 <div
                                   key={acc.id}
                                   onClick={() => handleSwitchAccount(acc)}
-                                  className="flex items-center justify-between p-1.5 rounded transition-all cursor-pointer hover:bg-zinc-800 text-zinc-305"
+                                  className={`flex items-center justify-between p-1.5 rounded transition-all cursor-pointer ${
+                                    getThemeClass("hover:bg-zinc-100 text-zinc-800", "hover:bg-zinc-800 text-zinc-300")
+                                  }`}
                                 >
                                   <div className="flex items-center gap-2 min-w-0">
                                     <div className="h-5 w-5 rounded-full overflow-hidden border border-zinc-800 shrink-0 flex items-center justify-center bg-zinc-950">
@@ -405,14 +458,16 @@ export default function LandingPage() {
                         </div>
                       </div>
 
-                      <div className="my-1 border-t border-zinc-800" />
+                      <div className={`my-1 border-t ${getThemeClass("border-zinc-200", "border-zinc-800")}`} />
 
                       <button
                         onClick={async () => {
                           setShowProfileMenu(false);
                           await supabase.auth.signOut({ scope: "local" });
                         }}
-                        className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-rose-500 hover:bg-zinc-800 transition-colors cursor-pointer"
+                        className={`w-full px-3 py-1.5 text-left flex items-center gap-2 text-rose-500 transition-colors cursor-pointer ${
+                          getThemeClass("hover:bg-zinc-100", "hover:bg-zinc-800")
+                        }`}
                       >
                         <LogOut className="h-3.5 w-3.5" />
                         Log Out
@@ -431,22 +486,24 @@ export default function LandingPage() {
         
         {/* Left Side: Brand Copy */}
         <div className="lg:col-span-5 flex flex-col items-start space-y-6">
-          <div className="text-xs font-semibold tracking-wider text-zinc-550 uppercase">
+          <div className={`text-xs font-semibold tracking-wider uppercase ${getThemeClass("text-indigo-600", "text-zinc-500")}`}>
             Collaborative Interview Platform
           </div>
 
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-white leading-tight">
+          <h1 className={`text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight leading-tight ${getThemeClass("text-zinc-900", "text-white")}`}>
             Developer sandbox for coding interviews.
           </h1>
 
-          <p className="text-sm text-zinc-400 leading-relaxed max-w-lg">
+          <p className={`text-sm leading-relaxed max-w-lg ${getThemeClass("text-zinc-600", "text-zinc-400")}`}>
             An IDE-first workspace designed to evaluate engineering candidates. Featuring multi-file editing, real-time workspace sync, and candidate dashboard metrics.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto pt-2">
             <Link 
               href={user ? "/we-rc" : "/accounts"} 
-              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-white text-[#0a0a0a] text-xs font-bold hover:bg-zinc-200 transition-all"
+              className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold transition-all shadow-sm ${
+                getThemeClass("bg-indigo-600 text-white hover:bg-indigo-700", "bg-white text-[#0a0a0a] hover:bg-zinc-200")
+              }`}
             >
               <span>Launch Sandbox</span>
               <ArrowRight className="h-3.5 w-3.5" />
@@ -456,31 +513,45 @@ export default function LandingPage() {
 
         {/* Right Side: Exact Replica mockup of we-rc IDE workspace */}
         <div className="lg:col-span-7 w-full">
-          <div className="w-full rounded-lg border border-zinc-900 bg-[#0a0a0a] shadow-2xl overflow-hidden aspect-[16/10] flex flex-col font-mono text-xs select-none">
+          <div className={`w-full rounded-lg border shadow-2xl overflow-hidden aspect-[16/10] flex flex-col font-mono text-xs select-none transition-colors duration-250 ${
+            getThemeClass("border-zinc-200 bg-white", "border-zinc-900 bg-[#0a0a0a]")
+          }`}>
             
             {/* Top Workspace Header Bar */}
-            <div className="flex items-center justify-between px-4 h-12 border-b border-zinc-900 bg-[#0a0a0a]">
+            <div className={`flex items-center justify-between px-4 h-12 border-b transition-colors duration-250 ${
+              getThemeClass("border-zinc-200 bg-zinc-50", "border-zinc-900 bg-[#0a0a0a]")
+            }`}>
               <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-6 h-6 bg-zinc-900 rounded border border-zinc-850 text-[10px] font-bold text-zinc-400">
+                <div className={`flex items-center justify-center w-6 h-6 rounded border text-[10px] font-bold ${
+                  getThemeClass("bg-zinc-200 border-zinc-300 text-zinc-650", "bg-zinc-900 border-zinc-800 text-zinc-400")
+                }`}>
                   WR
                 </div>
-                <span className="text-xs font-bold text-zinc-300">WeRC</span>
+                <span className={`text-xs font-bold ${getThemeClass("text-zinc-850", "text-zinc-300")}`}>WeRC</span>
               </div>
 
               {/* Status Pill in middle */}
-              <div className="flex items-center gap-2 px-2.5 py-1 rounded bg-[#121214] border border-zinc-850 text-[11px] font-medium text-zinc-400">
-                <span className="text-zinc-500">Active:</span>
-                <span className="text-zinc-300">main.py</span>
-                <span className="text-[10px] bg-indigo-950/50 text-indigo-400 border border-indigo-900/35 px-1 py-0.2 rounded font-semibold ml-1">
+              <div className={`flex items-center gap-2 px-2.5 py-1 rounded border text-[11px] font-medium transition-colors duration-250 ${
+                getThemeClass("bg-zinc-100 border-zinc-200 text-zinc-600", "bg-[#121214] border-zinc-800 text-zinc-400")
+              }`}>
+                <span className={getThemeClass("text-zinc-450", "text-zinc-500")}>Active:</span>
+                <span className={getThemeClass("text-zinc-800", "text-zinc-300")}>main.py</span>
+                <span className={`text-[10px] border px-1 py-0.2 rounded font-semibold ml-1 ${
+                  getThemeClass("bg-indigo-50 text-indigo-600 border-indigo-200", "bg-indigo-950/50 text-indigo-400 border-indigo-900/35")
+                }`}>
                   Entry: main.py
                 </span>
               </div>
 
               <div className="flex items-center gap-2">
-                <div className="text-[11px] text-zinc-400 border border-zinc-850 px-2 py-1 rounded bg-zinc-900/30">
+                <div className={`text-[11px] border px-2 py-1 rounded transition-colors duration-250 ${
+                  getThemeClass("bg-zinc-100 border-zinc-200 text-zinc-700", "bg-zinc-900/30 border-zinc-800 text-zinc-400")
+                }`}>
                   Python 3
                 </div>
-                <div className="flex items-center gap-1.5 px-3 py-1 rounded bg-white text-zinc-950 text-[11px] font-bold">
+                <div className={`flex items-center gap-1.5 px-3 py-1 rounded text-[11px] font-bold ${
+                  getThemeClass("bg-zinc-900 text-white hover:bg-zinc-800", "bg-white text-zinc-950 hover:bg-zinc-200")
+                }`}>
                   <Play className="h-3 w-3 fill-current" />
                   <span>Run Code</span>
                 </div>
@@ -491,8 +562,10 @@ export default function LandingPage() {
             <div className="flex-1 flex overflow-hidden">
               
               {/* Sidebar */}
-              <div className="w-44 border-r border-zinc-900 bg-[#0a0a0a] flex flex-col p-3">
-                <div className="flex items-center justify-between text-[10px] font-bold text-zinc-550 tracking-wider mb-3">
+              <div className={`w-44 border-r flex flex-col p-3 transition-colors duration-250 ${
+                getThemeClass("border-zinc-200 bg-zinc-50/50", "border-r border-zinc-900 bg-[#0a0a0a]")
+              }`}>
+                <div className="flex items-center justify-between text-[10px] font-bold text-zinc-500 tracking-wider mb-3">
                   <span>WORKSPACE FILES</span>
                   <div className="flex gap-1.5 text-zinc-500">
                     <FilePlus className="h-3.5 w-3.5 hover:text-zinc-300 cursor-pointer" />
@@ -501,38 +574,52 @@ export default function LandingPage() {
                 </div>
 
                 {/* Selected File Tab */}
-                <div className="flex items-center justify-between px-2.5 py-1.5 rounded bg-zinc-900/60 border border-zinc-850 text-zinc-200 text-xs">
+                <div className={`flex items-center justify-between px-2.5 py-1.5 rounded border text-xs transition-colors duration-250 ${
+                  getThemeClass("bg-white border-zinc-200 text-zinc-850", "bg-zinc-900/60 border-zinc-800 text-zinc-200")
+                }`}>
                   <span className="flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                     <span>main.py</span>
                   </span>
-                  <span className="text-[9px] bg-indigo-950/45 text-indigo-400 border border-indigo-900/30 px-1 py-0.2 rounded">Entry</span>
+                  <span className={`text-[9px] border px-1 py-0.2 rounded ${
+                    getThemeClass("bg-indigo-50 text-indigo-600 border-indigo-200", "bg-indigo-950/45 text-indigo-400 border-indigo-900/30")
+                  }`}>Entry</span>
                 </div>
               </div>
 
               {/* Editor + Console split */}
-              <div className="flex-1 flex flex-col bg-[#0a0a0a]">
+              <div className={`flex-1 flex flex-col transition-colors duration-250 ${
+                getThemeClass("bg-white", "bg-[#0a0a0a]")
+              }`}>
                 {/* Editor code area */}
-                <div className="flex-1 p-4 bg-[#0a0a0a] relative flex font-mono text-[11px]">
+                <div className="flex-1 p-4 relative flex font-mono text-[11px]">
                   {/* Line Numbers */}
-                  <div className="w-6 text-zinc-600 flex flex-col select-none pr-2 text-right border-r border-zinc-900 mr-3">
+                  <div className={`w-6 flex flex-col select-none pr-2 text-right border-r mr-3 ${
+                    getThemeClass("border-zinc-150 text-zinc-400", "border-zinc-900 text-zinc-600")
+                  }`}>
                     <span>1</span>
                     <span>2</span>
                     <span>3</span>
                   </div>
                   {/* Code */}
-                  <div className="flex-1 flex flex-col text-zinc-300">
-                    <span className="text-zinc-550"># Write your code here</span>
+                  <div className={`flex-1 flex flex-col ${getThemeClass("text-zinc-850", "text-zinc-300")}`}>
+                    <span className="text-zinc-500"># Write your code here</span>
                     <span>print("Hello, World!")</span>
                     <span className="h-4 w-1.5 bg-zinc-500 animate-pulse mt-0.5" />
                   </div>
                 </div>
 
                 {/* Console Output Drawer */}
-                <div className="h-28 border-t border-zinc-900 bg-[#0a0a0a] flex flex-col">
+                <div className={`h-28 border-t flex flex-col transition-colors duration-250 ${
+                  getThemeClass("border-zinc-200 bg-zinc-50/50", "border-zinc-900 bg-[#0a0a0a]")
+                }`}>
                   {/* Tabs */}
-                  <div className="flex items-center gap-4 px-4 border-b border-zinc-900 text-[10px] text-zinc-500 h-8">
-                    <span className="text-zinc-200 border-b border-white pb-2.5 pt-2.5 font-semibold cursor-pointer">
+                  <div className={`flex items-center gap-4 px-4 border-b text-[10px] text-zinc-500 h-8 ${
+                    getThemeClass("border-zinc-200", "border-zinc-900")
+                  }`}>
+                    <span className={`pb-2.5 pt-2.5 font-semibold cursor-pointer border-b ${
+                      getThemeClass("text-zinc-900 border-zinc-900", "text-zinc-200 border-white")
+                    }`}>
                       Console Output
                     </span>
                     <span className="hover:text-zinc-300 cursor-pointer">
@@ -554,55 +641,63 @@ export default function LandingPage() {
       </section>
 
       {/* Features Grid Section - Clean, borders, no blobs */}
-      <section id="features" className="border-t border-zinc-900 bg-[#0a0a0a] py-20">
+      <section id="features" className={`py-20 border-t transition-colors duration-250 ${getThemeClass("border-zinc-200 bg-zinc-50/50", "border-zinc-900 bg-[#0a0a0a]")}`}>
         <div className="max-w-7xl mx-auto px-6">
           <div className="max-w-3xl mb-16">
-            <div className="text-xs font-semibold tracking-wider text-zinc-550 uppercase mb-3">Capabilities</div>
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+            <div className={`text-xs font-semibold tracking-wider uppercase mb-3 ${getThemeClass("text-indigo-650", "text-zinc-500")}`}>Capabilities</div>
+            <h2 className={`text-2xl sm:text-3xl font-bold tracking-tight ${getThemeClass("text-zinc-900", "text-white")}`}>
               Minimalist workspace. Zero configuration.
             </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Feature 1 */}
-            <div className="p-5 rounded-lg border border-zinc-900 bg-[#0a0a0a] hover:border-zinc-800 transition-colors">
+            <div className={`p-5 rounded-lg border transition-colors ${
+              getThemeClass("border-zinc-200 bg-white hover:border-zinc-300", "border-zinc-900 bg-[#0a0a0a] hover:border-zinc-800")
+            }`}>
               <div className="text-zinc-400 mb-4">
                 <Users className="h-5 w-5" />
               </div>
-              <h3 className="text-sm font-bold text-white mb-1.5">Real-time Collaboration</h3>
+              <h3 className={`text-sm font-bold mb-1.5 ${getThemeClass("text-zinc-900", "text-white")}`}>Real-time Collaboration</h3>
               <p className="text-zinc-500 text-xs leading-relaxed">
                 Watch candidate keyboard inputs, tab focus switches, and updates instantly.
               </p>
             </div>
 
             {/* Feature 2 */}
-            <div className="p-5 rounded-lg border border-zinc-900 bg-[#0a0a0a] hover:border-zinc-800 transition-colors">
+            <div className={`p-5 rounded-lg border transition-colors ${
+              getThemeClass("border-zinc-200 bg-white hover:border-zinc-300", "border-zinc-900 bg-[#0a0a0a] hover:border-zinc-800")
+            }`}>
               <div className="text-zinc-400 mb-4">
                 <FolderTree className="h-5 w-5" />
               </div>
-              <h3 className="text-sm font-bold text-white mb-1.5">Multi-File Workspace</h3>
+              <h3 className={`text-sm font-bold mb-1.5 ${getThemeClass("text-zinc-900", "text-white")}`}>Multi-File Workspace</h3>
               <p className="text-zinc-500 text-xs leading-relaxed">
                 Supports folder setups. Create file dependencies and define the run entrypoint.
               </p>
             </div>
 
             {/* Feature 3 */}
-            <div className="p-5 rounded-lg border border-zinc-900 bg-[#0a0a0a] hover:border-zinc-800 transition-colors">
+            <div className={`p-5 rounded-lg border transition-colors ${
+              getThemeClass("border-zinc-200 bg-white hover:border-zinc-300", "border-zinc-900 bg-[#0a0a0a] hover:border-zinc-800")
+            }`}>
               <div className="text-zinc-400 mb-4">
                 <Code className="h-5 w-5" />
               </div>
-              <h3 className="text-sm font-bold text-white mb-1.5">Sandbox Sandbox</h3>
+              <h3 className={`text-sm font-bold mb-1.5 ${getThemeClass("text-zinc-900", "text-white")}`}>Sandbox Sandbox</h3>
               <p className="text-zinc-500 text-xs leading-relaxed">
                 Run script code directly on remote machines with stdin parameters.
               </p>
             </div>
 
             {/* Feature 4 */}
-            <div className="p-5 rounded-lg border border-zinc-900 bg-[#0a0a0a] hover:border-zinc-800 transition-colors">
+            <div className={`p-5 rounded-lg border transition-colors ${
+              getThemeClass("border-zinc-200 bg-white hover:border-zinc-300", "border-zinc-900 bg-[#0a0a0a] hover:border-zinc-800")
+            }`}>
               <div className="text-zinc-400 mb-4">
                 <CheckCircle2 className="h-5 w-5" />
               </div>
-              <h3 className="text-sm font-bold text-white mb-1.5">Interviewer Decisions</h3>
+              <h3 className={`text-sm font-bold mb-1.5 ${getThemeClass("text-zinc-900", "text-white")}`}>Interviewer Decisions</h3>
               <p className="text-zinc-500 text-xs leading-relaxed">
                 Document session notes and log Accepted/Rejected states directly to candidate logs.
               </p>
@@ -612,43 +707,43 @@ export default function LandingPage() {
       </section>
 
       {/* How it Works Section */}
-      <section id="how-it-works" className="border-t border-zinc-900 bg-[#0a0a0a] py-20">
+      <section id="how-it-works" className={`py-20 border-t transition-colors duration-250 ${getThemeClass("border-zinc-200 bg-white", "border-zinc-900 bg-[#0a0a0a]")}`}>
         <div className="max-w-7xl mx-auto px-6">
           <div className="max-w-3xl mb-16">
-            <div className="text-xs font-semibold tracking-wider text-zinc-550 uppercase mb-3">Workflow</div>
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+            <div className={`text-xs font-semibold tracking-wider uppercase mb-3 ${getThemeClass("text-indigo-650", "text-zinc-500")}`}>Workflow</div>
+            <h2 className={`text-2xl sm:text-3xl font-bold tracking-tight ${getThemeClass("text-zinc-900", "text-white")}`}>
               Evaluate in four simple steps.
             </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="space-y-2">
-              <div className="text-xs font-bold text-zinc-650">01 / ROOM CREATION</div>
-              <h4 className="text-sm font-bold text-white">Spin up sandbox</h4>
+              <div className={`text-xs font-bold ${getThemeClass("text-zinc-400", "text-zinc-650")}`}>01 / ROOM CREATION</div>
+              <h4 className={`text-sm font-bold ${getThemeClass("text-zinc-900", "text-white")}`}>Spin up sandbox</h4>
               <p className="text-zinc-500 text-xs leading-relaxed">
                 Click "Host Session" to immediately configure a new collaborative coding environment.
               </p>
             </div>
 
             <div className="space-y-2">
-              <div className="text-xs font-bold text-zinc-650">02 / INVITE APPLICANT</div>
-              <h4 className="text-sm font-bold text-white">Share code</h4>
+              <div className={`text-xs font-bold ${getThemeClass("text-zinc-400", "text-zinc-650")}`}>02 / INVITE APPLICANT</div>
+              <h4 className={`text-sm font-bold ${getThemeClass("text-zinc-900", "text-white")}`}>Share code</h4>
               <p className="text-zinc-500 text-xs leading-relaxed">
                 Copy and dispatch the session room token link directly to candidate participants.
               </p>
             </div>
 
             <div className="space-y-2">
-              <div className="text-xs font-bold text-zinc-650">03 / WRITE & COMPILE</div>
-              <h4 className="text-sm font-bold text-white">Evaluate capability</h4>
+              <div className={`text-xs font-bold ${getThemeClass("text-zinc-400", "text-zinc-650")}`}>03 / WRITE & COMPILE</div>
+              <h4 className={`text-sm font-bold ${getThemeClass("text-zinc-900", "text-white")}`}>Evaluate capability</h4>
               <p className="text-zinc-500 text-xs leading-relaxed">
                 Review design choices, run syntax tests, and analyze performance capabilities in real-time.
               </p>
             </div>
 
             <div className="space-y-2">
-              <div className="text-xs font-bold text-zinc-650">04 / DISPATCH LOGS</div>
-              <h4 className="text-sm font-bold text-white">Grade candidate</h4>
+              <div className={`text-xs font-bold ${getThemeClass("text-zinc-400", "text-zinc-650")}`}>04 / DISPATCH LOGS</div>
+              <h4 className={`text-sm font-bold ${getThemeClass("text-zinc-900", "text-white")}`}>Grade candidate</h4>
               <p className="text-zinc-500 text-xs leading-relaxed">
                 Log feedback and record grading decisions immediately inside dashboard databases.
               </p>
@@ -658,9 +753,9 @@ export default function LandingPage() {
       </section>
 
       {/* Call to Action Banner */}
-      <section className="border-t border-zinc-900 py-20 bg-[#0a0a0a]">
+      <section className={`py-20 border-t transition-colors duration-250 ${getThemeClass("border-zinc-200 bg-zinc-50/50", "border-zinc-900 bg-[#0a0a0a]")}`}>
         <div className="max-w-4xl mx-auto px-6 text-center space-y-6">
-          <h2 className="text-2xl sm:text-3xl font-bold text-white">
+          <h2 className={`text-2xl sm:text-3xl font-bold ${getThemeClass("text-zinc-900", "text-white")}`}>
             Ready to start developer evaluations?
           </h2>
           <p className="text-zinc-500 text-xs max-w-md mx-auto leading-relaxed">
@@ -669,7 +764,9 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row gap-3 justify-center items-center pt-2">
             <Link 
               href={user ? "/we-rc" : "/accounts"} 
-              className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-white text-[#0a0a0a] text-xs font-bold hover:bg-zinc-200 transition-all"
+              className={`w-full sm:w-auto px-5 py-2.5 rounded-lg text-xs font-bold transition-all shadow-sm ${
+                getThemeClass("bg-indigo-650 text-white hover:bg-indigo-700", "bg-white text-[#0a0a0a] hover:bg-zinc-200")
+              }`}
             >
               Launch Workspace
             </Link>
@@ -678,19 +775,21 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-zinc-900 bg-[#0a0a0a] py-10 text-xs text-zinc-600">
+      <footer className={`py-10 text-xs border-t transition-colors duration-250 ${getThemeClass("border-zinc-200 bg-zinc-50 text-zinc-500", "border-zinc-900 bg-[#0a0a0a] text-zinc-600")}`}>
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 bg-zinc-900 rounded border border-zinc-850 text-[9px] font-bold text-zinc-500 flex items-center justify-center">
+            <div className={`w-5 h-5 rounded border text-[9px] font-bold flex items-center justify-center ${
+              getThemeClass("bg-zinc-200 border-zinc-300 text-zinc-600", "bg-zinc-900 border-zinc-800 text-zinc-500")
+            }`}>
               WR
             </div>
-            <span className="font-semibold text-zinc-400">WeRC</span>
+            <span className={`font-semibold ${getThemeClass("text-zinc-800", "text-zinc-400")}`}>WeRC</span>
             <span>© 2026. All rights reserved.</span>
           </div>
 
           <div className="flex items-center gap-6">
-            <Link href={user ? "/we-rc" : "/accounts"} className="hover:text-zinc-400 transition-colors">Sandbox</Link>
-            <Link href="/accounts" className="hover:text-zinc-400 transition-colors">Portal</Link>
+            <Link href={user ? "/we-rc" : "/accounts"} className={`transition-colors ${getThemeClass("hover:text-zinc-800", "hover:text-zinc-400")}`}>Sandbox</Link>
+            <Link href="/accounts" className={`transition-colors ${getThemeClass("hover:text-zinc-800", "hover:text-zinc-400")}`}>Portal</Link>
           </div>
         </div>
       </footer>

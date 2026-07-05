@@ -1,13 +1,14 @@
 "use client";
 
 import React from "react";
-import { FileCode, Database, RefreshCw, Play, Lock, Unlock, ChevronDown, User, LogOut, Settings, LogIn, Video, Plus, X, MessageSquare, Info, Activity } from "lucide-react";
+import { FileCode, Database, RefreshCw, Play, Lock, Unlock, ChevronDown, User, LogOut, Settings, LogIn, Video, Plus, X, MessageSquare, Info, Activity, Sun, Moon } from "lucide-react";
 
 import Link from "next/link";
 import { supabase } from "../../app/config/supabase";
 import { User as SupabaseUser } from "@supabase/supabase-js";
 import { switchSavedAccount, type SavedAccountSession } from "../../app/lib/auth/switch-account";
 import { setSessionCookie } from "../../app/lib/auth/session-cookie";
+import { useTheme } from "../../app/context/ThemeContext";
 
 interface HeaderProps {
   language: string;
@@ -56,6 +57,7 @@ export default function Header({
   executionEnabled = true,
   setExecutionEnabled
 }: HeaderProps) {
+  const { theme, toggleTheme } = useTheme();
   const [showProfileMenu, setShowProfileMenu] = React.useState(false);
   const [joinCodeInput, setJoinCodeInput] = React.useState("");
   const profileContainerRef = React.useRef<HTMLDivElement>(null);
@@ -503,6 +505,27 @@ export default function Header({
                       Account Settings
                     </Link>
                   )}
+
+                  <button
+                    onClick={() => {
+                      toggleTheme();
+                    }}
+                    className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 transition-colors cursor-pointer ${
+                      getThemeClass("hover:bg-zinc-100 text-zinc-700", "hover:bg-zinc-800 text-zinc-300")
+                    }`}
+                  >
+                    {theme === "light" ? (
+                      <>
+                        <Moon className="h-3.5 w-3.5 text-indigo-500" />
+                        <span>Dark Mode</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sun className="h-3.5 w-3.5 text-amber-500" />
+                        <span>Light Mode</span>
+                      </>
+                    )}
+                  </button>
 
                   <div className={`my-1 border-t ${getThemeClass("border-zinc-200", "border-zinc-800")}`} />
 

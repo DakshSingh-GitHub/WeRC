@@ -17,6 +17,7 @@ import ConfirmModal from "../../components/modals/ConfirmModal";
 import InterviewModal from "../../components/modals/InterviewModal";
 import { supabase } from "../config/supabase";
 import { User } from "@supabase/supabase-js";
+import { useTheme } from "../context/ThemeContext";
 
 const INITIAL_FOLDERS: string[] = [];
 const INITIAL_FILES: CodeFile[] = [
@@ -38,7 +39,7 @@ interface ContextMenuState {
 
 export default function Home() {
   // Theme & Font Settings
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const { theme, setTheme } = useTheme();
   const [language, setLanguage] = useState<string>("python");
   const [fontSize, setFontSize] = useState<number>(14);
   const [uiScale, setUiScale] = useState<"sm" | "md" | "lg">("md");

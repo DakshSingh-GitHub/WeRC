@@ -273,30 +273,30 @@ export default function AccountsPage() {
   };
 
   return (
-    <div className="h-screen w-full overflow-hidden bg-zinc-950 text-zinc-300 flex flex-col items-center justify-center p-4 relative font-mono text-sm select-none">
+    <div className="min-h-screen w-full overflow-y-auto bg-zinc-950 text-zinc-300 flex flex-col items-center justify-start sm:justify-center p-4 py-8 relative font-mono text-sm select-none">
       
       {/* Top Left Navigation Link */}
       <Link
         href="/"
-        className="absolute top-6 left-6 flex items-center gap-2 text-zinc-500 hover:text-zinc-300 transition-colors py-1.5"
+        className="absolute top-4 left-4 flex items-center gap-2 text-zinc-500 hover:text-zinc-300 transition-colors py-1"
       >
         <ArrowLeft className="h-4 w-4" />
         <span>back_to_workspace</span>
       </Link>
 
       {/* Main Minimalist Box Container */}
-      <div className="w-full max-w-lg bg-zinc-950 border border-zinc-900 p-6 flex flex-col gap-5">
+      <div className="w-full max-w-lg bg-zinc-950 border border-zinc-900 p-5 flex flex-col gap-4 my-auto">
         
         {/* Workspace Brand Block */}
-        <div className="flex items-center gap-2.5 pb-3 border-b border-zinc-900">
-          <img src="/logo/logo.png" alt="WeRC Logo" className="h-6 w-6 object-contain rounded" />
-          <span className="text-base font-semibold tracking-tight text-white">WeRC Workspace</span>
+        <div className="flex items-center gap-2.5 pb-2 border-b border-zinc-900">
+          <img src="/logo/logo.png" alt="WeRC Logo" className="h-5 w-5 object-contain rounded" />
+          <span className="text-sm font-semibold tracking-tight text-white">WeRC Workspace</span>
         </div>
 
         {showVlyxirForm ? (
           /* VLYXIR CREDENTIAL AUTH PANEL */
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-900">
+          <div className="flex flex-col gap-2.5">
+            <div className="flex items-center justify-between pb-1.5 border-b border-zinc-900">
               <span className="text-xs font-semibold text-zinc-550 tracking-wider uppercase">// vlyxir_database_auth</span>
               <button
                 type="button"
