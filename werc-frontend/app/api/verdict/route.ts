@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getAuthenticatedUser, validateOrigin } from "../../lib/auth/api-auth";
 
 export async function POST(request: Request) {
   try {
+    // CSRF Protection: Validate request origin
+    const originError = validateOrigin(request);
+    if (originError) return originError;
+
+    // Authentication: Verify the caller is logged in
+    const authenticatedUser = await getAuthenticatedUser(request);
+    if (!authenticatedUser) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+
     const { roomCode, verdict } = await request.json();
 
     if (!roomCode || !verdict) {
@@ -27,6 +38,17 @@ export async function POST(request: Request) {
     const adminSupabase = createClient(wercUrl, wercServiceKey, {
       auth: { persistSession: false },
     });
+
+    // Authorization: Verify the authenticated user is the host of this session
+    const { data: session } = await adminSupabase
+      .from("interview_sessions")
+      .select("host_id")
+      .eq("code", roomCode)
+      .maybeSingle();
+
+    if (!session || session.host_id !== authenticatedUser.id) {
+      return NextResponse.json({ error: "Forbidden: only the host can set verdicts." }, { status: 403 });
+    }
 
     // First, delete duplicate records keeping only the OLDEST one per candidate+room
     const { data: allRecords } = await adminSupabase
@@ -69,8 +91,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
+    console.error("Verdict route error:", err);
     return NextResponse.json(
-      { error: err.message || "An unexpected error occurred." },
+      { error: "An unexpected error occurred." },
       { status: 500 }
     );
   }

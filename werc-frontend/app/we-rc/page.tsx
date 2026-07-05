@@ -111,7 +111,6 @@ export default function Home() {
             if (error) {
               console.warn("Failed to auto-sync candidate_id to database:", error);
             } else {
-              console.log("WeRC Sync: Successfully auto-synced candidate_id to DB:", candidate.id);
             }
           });
       }
@@ -1026,9 +1025,7 @@ export default function Home() {
         setChatMessages(prev => [...prev, payload.payload]);
       })
       .on("broadcast", { event: "participant-ping" }, (payload: any) => {
-        console.log("WeRC Event: Received participant-ping", payload, "isHostRef:", isHostRef.current, "isApprovedEntryRef:", isApprovedEntryRef.current);
         if (!isHostRef.current && !isApprovedEntryRef.current) {
-          console.log("WeRC Event: Ignored participant-ping (not host and not approved)");
           return;
         }
         const participant = payload.payload;
@@ -1044,7 +1041,6 @@ export default function Home() {
           avatar_url: user?.user_metadata?.avatar_url || user?.user_metadata?.picture || null,
           isHost: isHostRef.current
         };
-        console.log("WeRC Event: Sending participant-pong reply", selfParticipant);
         channel.send({
           type: "broadcast",
           event: "participant-pong",
@@ -1052,9 +1048,7 @@ export default function Home() {
         });
       })
       .on("broadcast", { event: "participant-pong" }, (payload: any) => {
-        console.log("WeRC Event: Received participant-pong", payload, "isHostRef:", isHostRef.current, "isApprovedEntryRef:", isApprovedEntryRef.current);
         if (!isHostRef.current && !isApprovedEntryRef.current) {
-          console.log("WeRC Event: Ignored participant-pong (not host and not approved)");
           return;
         }
         const participant = payload.payload;
@@ -1128,7 +1122,6 @@ export default function Home() {
       });
 
     channel.subscribe((status) => {
-      console.log("WeRC Event: Channel subscription status change:", status);
       if (status === "SUBSCRIBED" && user) {
         const selfParticipant = {
           id: user.id,
@@ -1140,14 +1133,12 @@ export default function Home() {
         // Use a short warm-up delay to guarantee broadcast delivery
         setTimeout(() => {
           if (isHostRef.current) {
-            console.log("WeRC Event: Sending warm-up participant-ping as Host", selfParticipant);
             channel.send({
               type: "broadcast",
               event: "participant-ping",
               payload: selfParticipant
             });
           } else {
-            console.log("WeRC Event: Sending warm-up request-entry as Candidate", selfParticipant);
             channel.send({
               type: "broadcast",
               event: "request-entry",
@@ -1180,7 +1171,6 @@ export default function Home() {
         };
 
         if (isHostRef.current || isApprovedEntryRef.current) {
-          console.log("WeRC Event: Sending periodic participant-ping", selfParticipant);
           channel.send({
             type: "broadcast",
             event: "participant-ping",

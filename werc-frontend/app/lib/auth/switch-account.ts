@@ -6,7 +6,7 @@ export interface SavedAccountSession {
   display_name: string;
   avatar_url: string | null;
   access_token: string;
-  refresh_token: string;
+  refresh_token?: string; // Optional: not stored in localStorage for security
   provider: string;
 }
 
@@ -35,6 +35,11 @@ export async function switchSavedAccount(
   const {
     data: { session: previousSession },
   } = await supabase.auth.getSession();
+
+  // If refresh_token is missing (not stored for security), we can't restore the session
+  if (!account.refresh_token) {
+    return { ok: false, reason: "stale_session" };
+  }
 
   const ephemeralClient = createEphemeralClient();
   const { data: validatedData, error: validationError } = await ephemeralClient.auth.setSession({

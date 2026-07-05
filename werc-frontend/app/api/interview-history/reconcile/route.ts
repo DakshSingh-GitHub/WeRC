@@ -73,8 +73,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, updatedCount });
   } catch (err: any) {
+    console.error("Reconcile route error:", err);
     return NextResponse.json(
-      { error: err.message || "An unexpected error occurred." },
+      { error: "An unexpected error occurred." },
       { status: 500 }
     );
   }

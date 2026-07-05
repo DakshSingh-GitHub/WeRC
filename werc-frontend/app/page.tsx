@@ -124,7 +124,7 @@ export default function LandingPage() {
       }
 
       if (result.session) {
-        setSessionCookie(result.session);
+        await setSessionCookie(result.session);
       }
       window.location.reload();
     } catch (err) {

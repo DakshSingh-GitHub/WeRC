@@ -156,7 +156,7 @@ export default function Header({
       }
 
       if (result.session) {
-        setSessionCookie(result.session);
+        await setSessionCookie(result.session);
       }
       window.location.reload();
     } catch (err) {

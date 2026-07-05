@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { randomBytes } from "crypto";
 
 export async function POST(request: Request) {
   try {
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
 
     if (!vlyxirUrl || !vlyxirAnonKey) {
       return NextResponse.json(
-        { error: "Vlyxir Supabase configuration is missing on the server. Please define NEXT_PUBLIC_VLYXIR_SUPABASE_URL and NEXT_PUBLIC_VLYXIR_SUPABASE_ANON_KEY." },
+        { error: "Server configuration error." },
         { status: 500 }
       );
     }
@@ -38,8 +39,9 @@ export async function POST(request: Request) {
         .maybeSingle();
 
       if (profileError) {
+        console.error("Failed to resolve Vlyxir username:", profileError.message);
         return NextResponse.json(
-          { error: "Failed to resolve Vlyxir username: " + profileError.message },
+          { error: "Failed to resolve username." },
           { status: 500 }
         );
       }
@@ -81,7 +83,7 @@ export async function POST(request: Request) {
 
     if (!wercUrl || !wercServiceKey) {
       return NextResponse.json(
-        { error: "WeRC Supabase admin configuration is missing on the server. Please define SUPABASE_SERVICE_ROLE_KEY." },
+        { error: "Server configuration error." },
         { status: 500 }
       );
     }
@@ -90,22 +92,29 @@ export async function POST(request: Request) {
       auth: { persistSession: false },
     });
 
-    // Check if the user already exists in WeRC
-    const { data: existingUserList, error: checkError } = await wercAdminSupabase.auth.admin.listUsers();
-    if (checkError) {
-      return NextResponse.json(
-        { error: "Failed to query WeRC users: " + checkError.message },
-        { status: 500 }
-      );
-    }
+    // Check if the user already exists in WeRC (via profiles table for efficiency)
+    let targetUser = null;
+    const { data: existingProfile } = await wercAdminSupabase
+      .from("profiles")
+      .select("id")
+      .eq("email", email.toLowerCase())
+      .maybeSingle();
 
-    let targetUser = existingUserList.users.find(
-      (u) => u.email?.toLowerCase() === email.toLowerCase()
-    );
+    if (existingProfile) {
+      const { data: { user: existingUser }, error: getUserError } = await wercAdminSupabase.auth.admin.getUserById(existingProfile.id);
+      if (getUserError) {
+        console.error("Failed to fetch existing WeRC user:", getUserError.message);
+        return NextResponse.json(
+          { error: "Failed to look up user account." },
+          { status: 500 }
+        );
+      }
+      targetUser = existingUser;
+    }
 
     if (!targetUser) {
       // Create user in WeRC Auth with a random secure password
-      const randomPassword = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
+      const randomPassword = randomBytes(32).toString("base64url");
       const fullName = vlyxirProfile?.full_name || vlyxirUser.user_metadata?.full_name || email.split("@")[0];
       const username = vlyxirProfile?.username || email.split("@")[0].replace(/[^a-z0-9-_]/g, "");
 
@@ -125,8 +134,9 @@ export async function POST(request: Request) {
       });
 
       if (createError || !newUser.user) {
+        console.error("Failed to create user in WeRC:", createError?.message);
         return NextResponse.json(
-          { error: "Failed to create user in WeRC: " + (createError?.message || "Unknown error") },
+          { error: "Failed to create user account." },
           { status: 500 }
         );
       }
@@ -183,16 +193,18 @@ export async function POST(request: Request) {
     });
 
     if (linkError || !linkData.properties?.action_link) {
+      console.error("Failed to generate session link:", linkError?.message);
       return NextResponse.json(
-        { error: "Failed to generate session link: " + (linkError?.message || "Unknown error") },
+        { error: "Failed to generate session link." },
         { status: 500 }
       );
     }
 
     return NextResponse.json({ redirectUrl: linkData.properties.action_link });
   } catch (error: any) {
+    console.error("Vlyxir auth route error:", error);
     return NextResponse.json(
-      { error: error.message || "An unexpected error occurred." },
+      { error: "An unexpected error occurred." },
       { status: 500 }
     );
   }

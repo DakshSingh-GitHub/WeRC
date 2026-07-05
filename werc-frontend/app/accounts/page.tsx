@@ -91,7 +91,7 @@ export default function AccountsPage() {
         }
       } catch (err) {
         console.error(err);
-        setUsernameStatus("available");
+        setUsernameStatus("idle");
       }
     }, 500);
 
@@ -118,6 +118,18 @@ export default function AccountsPage() {
 
     if (signupPassword !== signupConfirmPassword) {
       setSignupError("Passwords do not match.");
+      setSignupLoading(false);
+      return;
+    }
+
+    if (signupPassword.length < 8) {
+      setSignupError("Password must be at least 8 characters long.");
+      setSignupLoading(false);
+      return;
+    }
+
+    if (!/[A-Z]/.test(signupPassword) || !/[0-9]/.test(signupPassword)) {
+      setSignupError("Password must contain at least one uppercase letter and one number.");
       setSignupLoading(false);
       return;
     }
@@ -230,7 +242,26 @@ export default function AccountsPage() {
       }
 
       if (data.redirectUrl) {
-        window.location.href = data.redirectUrl;
+        // HIGH-1 fix: Validate redirect URL to prevent open redirect attacks.
+        // Supabase generateLink URLs point to the Supabase database origin.
+        try {
+          const redirectUrl = new URL(data.redirectUrl);
+          const allowedOrigins = [window.location.origin];
+
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+          if (supabaseUrl) allowedOrigins.push(new URL(supabaseUrl).origin);
+
+          const vlyxirSupabaseUrl = process.env.NEXT_PUBLIC_VLYXIR_SUPABASE_URL;
+          if (vlyxirSupabaseUrl) allowedOrigins.push(new URL(vlyxirSupabaseUrl).origin);
+
+          if (!allowedOrigins.includes(redirectUrl.origin)) {
+            throw new Error("Invalid redirect URL.");
+          }
+          window.location.href = data.redirectUrl;
+        } catch (err) {
+          console.error("Redirect validation error:", err);
+          throw new Error("Invalid redirect URL received.");
+        }
       } else {
         throw new Error("No redirect link returned.");
       }
@@ -461,8 +492,8 @@ export default function AccountsPage() {
                         </div>
                         <div className="flex justify-between items-center text-[9px] text-zinc-650 font-semibold mt-0.5">
                           <span>PASSWORD STRENGTH</span>
-                          <span className={signupPassword.length >= 8 ? "text-emerald-500" : signupPassword.length > 0 ? "text-amber-500" : "text-zinc-600"}>
-                            {signupPassword.length >= 8 ? "STRONG" : signupPassword.length > 0 ? "WEAK" : "START TYPING"}
+                          <span className={signupPassword.length >= 8 && /[A-Z]/.test(signupPassword) && /[0-9]/.test(signupPassword) ? "text-emerald-500" : signupPassword.length > 0 ? "text-amber-500" : "text-zinc-600"}>
+                            {signupPassword.length >= 8 && /[A-Z]/.test(signupPassword) && /[0-9]/.test(signupPassword) ? "STRONG" : signupPassword.length > 0 ? "WEAK — need 8+ chars, uppercase, number" : "START TYPING"}
                           </span>
                         </div>
                       </div>

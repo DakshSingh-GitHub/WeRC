@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getAuthenticatedUser, validateOrigin } from "../../lib/auth/api-auth";
 
-// Ephemeral in-memory store for local sliding-window rate-limiting
+// WARNING: This in-memory rate limiter resets on each serverless cold start.
+// For production, consider using a centralized store (e.g., Upstash Redis).
 const rateLimitStore: Record<string, number[]> = {};
 
 const LIMIT = 5; // Max 5 runs
@@ -9,6 +11,16 @@ const WINDOW_MS = 60 * 1000; // 60 seconds
 
 export async function POST(request: Request) {
   try {
+    // CSRF Protection: Validate request origin
+    const originError = validateOrigin(request);
+    if (originError) return originError;
+
+    // Authentication: Verify the caller is logged in
+    const authenticatedUser = await getAuthenticatedUser(request);
+    if (!authenticatedUser) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+
     const { files, entrypoint, input, roomCode } = await request.json();
 
     if (!roomCode) {
@@ -129,8 +141,9 @@ export async function POST(request: Request) {
     const result = await response.json();
     return NextResponse.json(result);
   } catch (err: any) {
+    console.error("Run route error:", err);
     return NextResponse.json(
-      { error: err.message || "An unexpected error occurred." },
+      { error: "An unexpected error occurred." },
       { status: 500 }
     );
   }

@@ -9,18 +9,18 @@ export default function CookieSync() {
     // Sync initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        setSessionCookie(session);
+        void setSessionCookie(session);
       } else {
-        clearSessionCookie();
+        void clearSessionCookie();
       }
     });
 
     // Listen to changes in auth state
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session) {
-        setSessionCookie(session);
+        void setSessionCookie(session);
       } else {
-        clearSessionCookie();
+        void clearSessionCookie();
       }
     });
 

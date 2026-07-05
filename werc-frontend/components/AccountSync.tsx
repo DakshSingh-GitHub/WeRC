@@ -10,7 +10,8 @@ export interface SavedAccount {
   display_name: string;
   avatar_url: string | null;
   access_token: string;
-  refresh_token: string;
+  // SECURITY: refresh_token is intentionally NOT stored in localStorage.
+  // It is long-lived and would allow full account takeover if exfiltrated via XSS.
   provider: string;
 }
 
@@ -172,7 +173,7 @@ export default function AccountSync() {
         display_name: displayName,
         avatar_url: avatarUrl,
         access_token: session.access_token,
-        refresh_token: session.refresh_token,
+        // refresh_token intentionally omitted — not safe for localStorage
         provider: provider
       };
 
