@@ -273,7 +273,7 @@ export default function AccountsPage() {
   };
 
   return (
-    <div className="min-h-screen w-full overflow-y-auto bg-zinc-950 text-zinc-300 flex flex-col items-center justify-start sm:justify-center p-4 py-8 relative font-mono text-sm select-none">
+    <div className="min-h-screen w-full overflow-y-auto bg-zinc-950 text-zinc-300 flex flex-col items-center justify-start sm:justify-center p-4 pt-16 pb-8 sm:py-8 relative font-mono text-sm select-none">
       
       {/* Top Left Navigation Link */}
       <Link
@@ -439,7 +439,7 @@ export default function AccountsPage() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="flex flex-col gap-1">
                           <label className="text-[10px] text-zinc-550 font-semibold tracking-wider">EMAIL</label>
                           <input

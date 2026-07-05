@@ -674,26 +674,26 @@ export default function DashboardPage() {
     }`}>
       
       {/* Top Header Row */}
-      <header className={`h-14 px-6 border-b flex items-center justify-between transition-colors duration-250 ${
+      <header className={`h-14 px-4 md:px-6 border-b flex items-center justify-between transition-colors duration-250 ${
         getThemeClass("border-zinc-200 bg-white", "border-zinc-900 bg-zinc-950")
       }`}>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4 min-w-0">
           <button
             onClick={() => router.back()}
-            className={`flex items-center gap-2 transition-colors cursor-pointer bg-transparent border-none p-0 focus:outline-none ${
+            className={`flex items-center gap-2 transition-colors cursor-pointer bg-transparent border-none p-0 focus:outline-none shrink-0 ${
               getThemeClass("text-zinc-500 hover:text-zinc-800", "text-zinc-500 hover:text-zinc-300")
             }`}
           >
             <ArrowLeft className="h-4 w-4" />
-            <span>workspace</span>
+            <span className="hidden sm:inline">workspace</span>
           </button>
-          <div className={`h-4 w-px ${getThemeClass("bg-zinc-200", "bg-zinc-900")}`} />
-          <span className={`font-bold uppercase tracking-wider text-[11px] ${getThemeClass("text-zinc-800", "text-zinc-200")}`}>// user_dashboard</span>
+          <div className={`h-4 w-px shrink-0 ${getThemeClass("bg-zinc-200", "bg-zinc-900")}`} />
+          <span className={`font-bold uppercase tracking-wider text-[10px] sm:text-[11px] truncate ${getThemeClass("text-zinc-800", "text-zinc-200")}`}>// user_dashboard</span>
         </div>
 
         <button
           onClick={handleSignOut}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded border transition-all cursor-pointer ${
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded border transition-all cursor-pointer shrink-0 ${
             getThemeClass("bg-zinc-100 border-zinc-200 text-zinc-600 hover:bg-rose-50 hover:text-rose-500 hover:border-rose-200", "bg-zinc-900 border-zinc-800 text-zinc-450 hover:bg-rose-955/20 hover:text-rose-400 hover:border-rose-900/30")
           }`}
         >
@@ -703,17 +703,17 @@ export default function DashboardPage() {
       </header>
 
       {/* Workspace Split Body */}
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-col md:flex-row flex-1 min-h-0">
         
         {/* Left Options Navigation List */}
-        <aside className={`w-60 border-r p-6 flex flex-col gap-1.5 shrink-0 overflow-y-auto transition-colors duration-250 ${
+        <aside className={`w-full md:w-60 border-b md:border-b-0 md:border-r p-4 md:p-6 flex flex-row md:flex-col gap-2 md:gap-1.5 shrink-0 overflow-x-auto md:overflow-x-visible md:overflow-y-auto transition-colors duration-250 ${
           getThemeClass("border-zinc-200 bg-zinc-50/50", "border-zinc-900 bg-zinc-950")
-        }`}>
-          <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-2">Options</div>
+        } scrollbar-none`}>
+          <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-2 hidden md:block">Options</div>
           
           <button
             onClick={() => setActiveTab("profile")}
-            className={`w-full px-3 py-2.5 rounded text-left flex items-center gap-2 transition-all cursor-pointer ${
+            className={`w-auto md:w-full px-3 py-2 md:py-2.5 rounded text-left flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === "profile" 
                 ? getThemeClass("bg-zinc-200 text-zinc-900 font-bold", "bg-zinc-900 text-white font-bold") 
                 : getThemeClass("text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900", "text-zinc-400 hover:bg-zinc-900/50 hover:text-zinc-300")
@@ -725,7 +725,7 @@ export default function DashboardPage() {
 
           <button
             onClick={() => setActiveTab("account")}
-            className={`w-full px-3 py-2.5 rounded text-left flex items-center gap-2 transition-all cursor-pointer ${
+            className={`w-auto md:w-full px-3 py-2 md:py-2.5 rounded text-left flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === "account" 
                 ? getThemeClass("bg-zinc-200 text-zinc-900 font-bold", "bg-zinc-900 text-white font-bold") 
                 : getThemeClass("text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900", "text-zinc-400 hover:bg-zinc-900/50 hover:text-zinc-300")
@@ -737,7 +737,7 @@ export default function DashboardPage() {
 
           <button
             onClick={() => setActiveTab("interviews")}
-            className={`w-full px-3 py-2.5 rounded text-left flex items-center gap-2 transition-all cursor-pointer ${
+            className={`w-auto md:w-full px-3 py-2 md:py-2.5 rounded text-left flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === "interviews" 
                 ? getThemeClass("bg-zinc-200 text-zinc-900 font-bold", "bg-zinc-900 text-white font-bold") 
                 : getThemeClass("text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900", "text-zinc-400 hover:bg-zinc-900/50 hover:text-zinc-300")
@@ -749,7 +749,7 @@ export default function DashboardPage() {
 
           <button
             onClick={() => setActiveTab("taken")}
-            className={`w-full px-3 py-2.5 rounded text-left flex items-center gap-2 transition-all cursor-pointer ${
+            className={`w-auto md:w-full px-3 py-2 md:py-2.5 rounded text-left flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === "taken" 
                 ? getThemeClass("bg-zinc-200 text-zinc-900 font-bold", "bg-zinc-900 text-white font-bold") 
                 : getThemeClass("text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900", "text-zinc-400 hover:bg-zinc-900/50 hover:text-zinc-300")
@@ -761,7 +761,7 @@ export default function DashboardPage() {
 
           <button
             onClick={() => setActiveTab("code")}
-            className={`w-full px-3 py-2.5 rounded text-left flex items-center gap-2 transition-all cursor-pointer ${
+            className={`w-auto md:w-full px-3 py-2 md:py-2.5 rounded text-left flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === "code" 
                 ? getThemeClass("bg-zinc-200 text-zinc-900 font-bold", "bg-zinc-900 text-white font-bold") 
                 : getThemeClass("text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900", "text-zinc-400 hover:bg-zinc-900/50 hover:text-zinc-300")
@@ -773,7 +773,7 @@ export default function DashboardPage() {
         </aside>
 
         {/* Right Tab Content Body */}
-        <main className={`flex-1 p-10 overflow-y-auto flex justify-center transition-colors duration-250 ${
+        <main className={`flex-1 p-4 md:p-10 overflow-y-auto flex justify-center transition-colors duration-250 ${
           getThemeClass("bg-white", "bg-zinc-950")
         }`}>
           <div className="w-full max-w-2xl flex flex-col gap-6 select-text">

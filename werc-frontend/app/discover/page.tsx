@@ -83,21 +83,21 @@ export default function DiscoverPage() {
     }`}>
       
       {/* Header bar */}
-      <header className={`h-14 px-6 border-b flex items-center justify-between transition-colors duration-250 ${
+      <header className={`h-14 px-4 sm:px-6 border-b flex items-center justify-between transition-colors duration-250 ${
         getThemeClass("border-zinc-200 bg-white", "border-zinc-900 bg-zinc-950")
       }`}>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
           <button
             onClick={() => router.back()}
-            className={`flex items-center gap-2 transition-colors cursor-pointer bg-transparent border-none p-0 focus:outline-none ${
+            className={`flex items-center gap-2 transition-colors cursor-pointer bg-transparent border-none p-0 focus:outline-none shrink-0 ${
               getThemeClass("text-zinc-500 hover:text-zinc-800", "text-zinc-500 hover:text-zinc-300")
             }`}
           >
             <ArrowLeft className="h-4 w-4" />
-            <span>back</span>
+            <span className="hidden sm:inline">back</span>
           </button>
-          <div className={`h-4 w-px ${getThemeClass("bg-zinc-200", "bg-zinc-900")}`} />
-          <span className={`font-bold uppercase tracking-wider text-[11px] ${getThemeClass("text-zinc-800", "text-zinc-200")}`}>// discover_developers</span>
+          <div className={`h-4 w-px shrink-0 ${getThemeClass("bg-zinc-200", "bg-zinc-900")}`} />
+          <span className={`font-bold uppercase tracking-wider text-[10px] sm:text-[11px] truncate ${getThemeClass("text-zinc-800", "text-zinc-200")}`}>// discover_developers</span>
         </div>
       </header>
 
@@ -152,7 +152,7 @@ export default function DiscoverPage() {
                   }`}
                 >
                   {/* Left Column: Avatar + Names */}
-                  <div className="flex items-center gap-3.5 min-w-0 max-w-[40%]">
+                  <div className="flex items-center gap-3.5 min-w-0 max-w-[75%] sm:max-w-[40%]">
                     {/* User Avatar */}
                     <div className={`h-8 w-8 rounded-full overflow-hidden border shrink-0 bg-zinc-950 flex items-center justify-center ${
                       getThemeClass("border-zinc-200", "border-zinc-800")

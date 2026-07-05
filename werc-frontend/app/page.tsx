@@ -524,17 +524,17 @@ export default function LandingPage() {
             <div className={`flex items-center justify-between px-4 h-12 border-b transition-colors duration-250 ${
               getThemeClass("border-zinc-200 bg-zinc-50", "border-zinc-900 bg-[#0a0a0a]")
             }`}>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 md:gap-3 shrink-0">
                 <div className={`flex items-center justify-center w-6 h-6 rounded border text-[10px] font-bold ${
                   getThemeClass("bg-zinc-200 border-zinc-300 text-zinc-650", "bg-zinc-900 border-zinc-800 text-zinc-400")
                 }`}>
                   WR
                 </div>
-                <span className={`text-xs font-bold ${getThemeClass("text-zinc-850", "text-zinc-300")}`}>WeRC</span>
+                <span className={`text-xs font-bold hidden sm:inline ${getThemeClass("text-zinc-850", "text-zinc-300")}`}>WeRC</span>
               </div>
 
               {/* Status Pill in middle */}
-              <div className={`flex items-center gap-2 px-2.5 py-1 rounded border text-[11px] font-medium transition-colors duration-250 ${
+              <div className={`hidden md:flex items-center gap-2 px-2.5 py-1 rounded border text-[11px] font-medium transition-colors duration-250 ${
                 getThemeClass("bg-zinc-100 border-zinc-200 text-zinc-600", "bg-[#121214] border-zinc-800 text-zinc-400")
               }`}>
                 <span className={getThemeClass("text-zinc-450", "text-zinc-500")}>Active:</span>
@@ -546,17 +546,17 @@ export default function LandingPage() {
                 </span>
               </div>
 
-              <div className="flex items-center gap-2">
-                <div className={`text-[11px] border px-2 py-1 rounded transition-colors duration-250 ${
+              <div className="flex items-center gap-2 shrink-0">
+                <div className={`text-[11px] border px-2 py-1 rounded transition-colors duration-250 hidden sm:block ${
                   getThemeClass("bg-zinc-100 border-zinc-200 text-zinc-700", "bg-zinc-900/30 border-zinc-800 text-zinc-400")
                 }`}>
                   Python 3
                 </div>
-                <div className={`flex items-center gap-1.5 px-3 py-1 rounded text-[11px] font-bold ${
+                <div className={`flex items-center gap-1.5 px-2.5 py-1 sm:px-3 rounded text-[11px] font-bold cursor-pointer ${
                   getThemeClass("bg-zinc-900 text-white hover:bg-zinc-800", "bg-white text-zinc-950 hover:bg-zinc-200")
                 }`}>
                   <Play className="h-3 w-3 fill-current" />
-                  <span>Run Code</span>
+                  <span className="hidden sm:inline">Run Code</span>
                 </div>
               </div>
             </div>
@@ -565,7 +565,7 @@ export default function LandingPage() {
             <div className="flex-1 flex overflow-hidden">
               
               {/* Sidebar */}
-              <div className={`w-44 border-r flex flex-col p-3 transition-colors duration-250 ${
+              <div className={`w-44 border-r hidden sm:flex flex-col p-3 transition-colors duration-250 ${
                 getThemeClass("border-zinc-200 bg-zinc-50/50", "border-r border-zinc-900 bg-[#0a0a0a]")
               }`}>
                 <div className="flex items-center justify-between text-[10px] font-bold text-zinc-500 tracking-wider mb-3">

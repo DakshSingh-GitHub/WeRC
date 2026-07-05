@@ -190,6 +190,14 @@ export default function AccountSync() {
       localStorage.setItem("werc_saved_accounts", JSON.stringify(savedAccounts));
     };
 
+    // Register PWA Service Worker
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then((reg) => console.log("SW registered:", reg.scope))
+        .catch((err) => console.error("SW registration failed:", err));
+    }
+
     // Sync initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) syncSession(session);

@@ -18,6 +18,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
 	title: "WeRC — Collaborative Interview Workspace",
 	description: "Premium collaborative workspace whiteboard and sandbox for developer interviews.",
+	manifest: "/manifest.json",
 	icons: {
 		icon: "/logo/logo.png",
 	},
