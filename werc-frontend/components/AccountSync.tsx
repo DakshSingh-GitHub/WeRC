@@ -26,7 +26,7 @@ export default function AccountSync() {
       try {
         const { data: existingProfile, error } = await supabase
           .from("profiles")
-          .select("id, bio, country, username")
+          .select("id, bio, country, username, avatar_url")
           .eq("id", user.id)
           .maybeSingle();
 
@@ -36,7 +36,8 @@ export default function AccountSync() {
         }
 
         const isNewProfile = !existingProfile;
-        const needsSync = isNewProfile || !existingProfile.bio || !existingProfile.country || existingProfile.country === "United States";
+        const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture || null;
+        const needsSync = isNewProfile || !existingProfile.bio || !existingProfile.country || existingProfile.country === "United States" || (!existingProfile.avatar_url && avatarUrl);
 
         if (needsSync) {
           // Initialize Vlyxir Supabase Client to check if a profile exists under this email
@@ -68,7 +69,6 @@ export default function AccountSync() {
 
           if (isNewProfile) {
             const displayName = user.user_metadata?.display_name || user.user_metadata?.full_name || user.email?.split("@")[0] || "User";
-            const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture || null;
             
             let resolvedUsername = vlyxirUsername.trim().toLowerCase().replace(/[^a-z0-9-_]/g, "");
             if (!resolvedUsername || resolvedUsername.length < 3) {
@@ -118,13 +118,16 @@ export default function AccountSync() {
               }
             }
           } else {
-            // Profile exists, but update bio & country from Vlyxir if they are empty
+            // Profile exists, but update bio, country & avatar_url from Vlyxir/Social if they are empty
             const updates: any = {};
             if (!existingProfile.bio && vlyxirBio) {
               updates.bio = vlyxirBio;
             }
             if ((!existingProfile.country || existingProfile.country === "United States") && vlyxirCountry && vlyxirCountry !== "United States") {
               updates.country = vlyxirCountry;
+            }
+            if (!existingProfile.avatar_url && avatarUrl) {
+              updates.avatar_url = avatarUrl;
             }
 
             if (Object.keys(updates).length > 0) {

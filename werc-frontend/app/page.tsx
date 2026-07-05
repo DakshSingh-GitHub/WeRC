@@ -209,7 +209,10 @@ export default function LandingPage() {
             <a href="#how-it-works" className={`transition-colors ${getThemeClass("hover:text-zinc-900", "hover:text-zinc-100")}`}>Workflow</a>
             <Link href={user ? "/we-rc" : "/accounts"} className={`transition-colors ${getThemeClass("hover:text-zinc-900", "hover:text-zinc-100")}`}>Sandbox</Link>
             {user && (
-              <Link href="/dashboard" className={`transition-colors ${getThemeClass("hover:text-zinc-900", "hover:text-zinc-100")}`}>Dashboard</Link>
+              <>
+                <Link href="/dashboard" className={`transition-colors ${getThemeClass("hover:text-zinc-900", "hover:text-zinc-100")}`}>Dashboard</Link>
+                <Link href="/discover" className={`transition-colors ${getThemeClass("hover:text-zinc-900", "hover:text-zinc-100")}`}>Discover</Link>
+              </>
             )}
           </nav>
 

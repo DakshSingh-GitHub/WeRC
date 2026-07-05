@@ -265,6 +265,29 @@ export default function UserProfilePage({ params }: { params: Promise<{ username
         </div>
 
       </div>
+
+      {/* Action Buttons Below Main Card */}
+      <div className="w-full max-w-md mt-4 grid grid-cols-2 gap-3">
+        <button
+          disabled
+          className={`py-2.5 px-4 rounded-lg font-bold text-xs border text-center transition-all opacity-45 cursor-not-allowed ${
+            getThemeClass("bg-zinc-100 border-zinc-200 text-zinc-400", "bg-zinc-900 border-zinc-800 text-zinc-500")
+          }`}
+          title="Coming Soon"
+        >
+          Take Interview
+        </button>
+        <button
+          disabled
+          className={`py-2.5 px-4 rounded-lg font-bold text-xs border text-center transition-all opacity-45 cursor-not-allowed ${
+            getThemeClass("bg-zinc-100 border-zinc-200 text-zinc-400", "bg-zinc-900 border-zinc-800 text-zinc-500")
+          }`}
+          title="Coming Soon"
+        >
+          Request Interview
+        </button>
+      </div>
+
     </div>
   );
 }
