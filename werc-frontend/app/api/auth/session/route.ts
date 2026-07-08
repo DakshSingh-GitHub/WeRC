@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     const response = NextResponse.json({ ok: true });
     response.cookies.set("werc-session", access_token, {
       httpOnly: true,
-      secure: isProduction,
+      secure: isProduction, // Allow non-secure cookies in development for localhost testing
       sameSite: "lax",
       path: "/",
       maxAge: maxAge,
