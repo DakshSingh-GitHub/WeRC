@@ -198,12 +198,8 @@ export default function AccountSync() {
         .catch((err) => console.error("SW registration failed:", err));
     }
 
-    // Sync initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) syncSession(session);
-    });
-
-    // Listen to changes in auth state
+    // FIX: Only listen to auth state changes, don't call getSession separately
+    // This prevents double-triggering of auth updates
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
         syncSession(session);
